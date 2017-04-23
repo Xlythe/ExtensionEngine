@@ -5,7 +5,6 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
-import android.media.UnsupportedSchemeException;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -27,9 +26,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static com.xlythe.engine.extension.Extension.TAG;
 import static com.xlythe.engine.extension.Extension.DEBUG;
+import static com.xlythe.engine.extension.Extension.TAG;
 
+/**
+ * A file provider allows other apps installed on the user's file to request us for files. This one
+ * specifically provides the dex files needed to load our class into memory. Extensions should add
+ * the following lines of code to their AndroidManifest.xml to enable the provider.
+ *
+ * <provider
+ *   android:authorities="your.package.name.DexFileProvider"
+ *   android:name="com.xlythe.engine.extension.v2.DexFileProvider"
+ *   android:exported="true" />
+ */
 public class DexFileProvider extends ContentProvider implements ContentProvider.PipeDataWriter<InputStream> {
     public static final String PATH_COUNT = "count";
     public static final String PATH_DEX = "dex";
