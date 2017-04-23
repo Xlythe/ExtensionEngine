@@ -185,7 +185,7 @@ public class Extension extends ContextWrapper {
     }
 
     public static class ReflectionPair<T> extends Pair<Class<T>, T> {
-        ReflectionPair(Class<T> first, T second) {
+        public ReflectionPair(Class<T> first, T second) {
             super(first, second);
         }
     }
