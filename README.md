@@ -6,7 +6,7 @@ Where to Download
 -----------------
 ```groovy
 dependencies {
-  compile 'com.xlythe:extension-engine:0.0.2'
+  compile 'com.xlythe:extension-engine:0.0.3'
 }
 ```
 
