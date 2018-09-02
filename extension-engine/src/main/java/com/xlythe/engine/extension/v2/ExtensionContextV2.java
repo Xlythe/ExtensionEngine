@@ -8,7 +8,6 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
-import android.support.annotation.Nullable;
 import android.util.Log;
 
 import java.io.File;
@@ -17,6 +16,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Locale;
 
+import androidx.annotation.Nullable;
 import dalvik.system.DexClassLoader;
 
 import static com.xlythe.engine.extension.Extension.DEBUG;
