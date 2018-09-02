@@ -8,10 +8,14 @@ android {
         minSdkVersion 14
         targetSdkVersion 28
         versionCode 1
-        versionName "0.0.3"
+        versionName project.property("bintray.libraryVersion")
     }
     lintOptions {
         abortOnError false
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
