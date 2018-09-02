@@ -48,7 +48,7 @@ public class Extension extends ContextWrapper {
      * with. Passing in no signatures means all extensions will be listed.
      */
     public static List<App> getApps(Context context, String packageName, byte[]... signatures) {
-        LinkedList<App> apps = new LinkedList<>();
+        List<App> apps = new LinkedList<>();
         PackageManager manager = context.getPackageManager();
 
         Intent intent = new Intent(packageName + ACTION_EXTENSION);
