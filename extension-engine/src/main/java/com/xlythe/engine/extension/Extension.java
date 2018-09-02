@@ -11,7 +11,6 @@ import android.util.Pair;
 
 import com.xlythe.engine.extension.v1.ExtensionContextV1;
 import com.xlythe.engine.extension.v2.ExtensionContextV2;
-import com.xlythe.engine.theme.App;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

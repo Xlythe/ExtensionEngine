@@ -9,8 +9,8 @@ import java.nio.ByteBuffer;
 import java.util.Enumeration;
 import java.util.Vector;
 
-import static com.xlythe.engine.extension.Extension.TAG;
 import static com.xlythe.engine.extension.Extension.DEBUG;
+import static com.xlythe.engine.extension.Extension.TAG;
 
 /**
  * A class loader that combines multiple class loaders into one.<br>

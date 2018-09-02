@@ -19,8 +19,8 @@ import java.util.Locale;
 
 import dalvik.system.DexClassLoader;
 
-import static com.xlythe.engine.extension.Extension.TAG;
 import static com.xlythe.engine.extension.Extension.DEBUG;
+import static com.xlythe.engine.extension.Extension.TAG;
 
 /**
  * TODO: This doesn't properly load resources from the other class.

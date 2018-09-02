@@ -9,27 +9,20 @@ import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
 
-import com.xlythe.engine.theme.Theme;
-
 import static com.xlythe.engine.extension.Extension.TAG;
 
 public class ExtensionResources {
     public static Drawable getDrawable(Context context, String extension, String name) {
         if (name == null) return null;
 
-        int id = Theme.getId(context, Theme.DRAWABLE, name);
-        if (id != 0) {
-            return Theme.getResources(context).getDrawable(id);
-        }
-
-        // No drawable in the theme, grab from extension
-        id = getResources(context, extension).getIdentifier(name, Theme.DRAWABLE, extension);
+        // Grab from extension
+        int id = getResources(context, extension).getIdentifier(name, "drawable", extension);
         if (id != 0) {
             return getResources(context, extension).getDrawable(id);
         }
 
         // No drawable in the extension, grab from app
-        id = context.getResources().getIdentifier(name, Theme.DRAWABLE, context.getPackageName());
+        id = context.getResources().getIdentifier(name, "drawable", context.getPackageName());
         if (id != 0) {
             return context.getResources().getDrawable(id);
         }

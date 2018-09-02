@@ -14,8 +14,8 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import com.xlythe.engine.extension.App;
 import com.xlythe.engine.extension.Extension;
-import com.xlythe.engine.theme.App;
 
 import java.io.File;
 import java.io.FileNotFoundException;
