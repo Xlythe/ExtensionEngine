@@ -1,6 +1,6 @@
 ExtensionEngine
 ===============
-A library that allows Android apps to talk directly to each other at the java layer. Useful for embeding views from one app inside another (See SAO Launcher for an example).
+A library that allows Android apps to talk directly to each other at the java layer. Useful for embedding views from one app inside another (See SAO Launcher for an example).
 
 Where to Download
 -----------------
@@ -12,6 +12,17 @@ dependencies {
 
 Loading Extensions
 ----------------
+As of Android 11 (API 30), the main app must add this to their AndroidManifest.
+```xml
+<manifest package="com.example.myapp">
+    <queries>
+        <intent>
+            <action android:name="com.example.myapp.EXTENSION" /> <!-- Change com.example.myapp to your main app's package name -->
+        </intent>
+    </queries>
+</manifest>
+```
+
 Define your extension
 ```java
 public class SAOExtension extends Extension {

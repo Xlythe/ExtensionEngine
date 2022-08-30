@@ -1,5 +1,6 @@
 package com.xlythe.engine.extension;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -11,6 +12,7 @@ import android.util.Log;
 
 import static com.xlythe.engine.extension.Extension.TAG;
 
+@SuppressLint("DiscouragedApi")
 public class ExtensionResources {
     public static Drawable getDrawable(Context context, String extension, String name) {
         if (name == null) return null;
