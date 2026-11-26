@@ -16,6 +16,14 @@ android {
             dimension 'role'
             applicationId 'com.xlythe.test.host'
         }
+        bundledHost {
+            dimension 'role'
+            applicationId 'com.xlythe.test.host'
+        }
+        extensionWithAdapter {
+            dimension 'role'
+            applicationId 'com.xlythe.test.extension'
+        }
         adapter {
             dimension 'role'
             applicationId 'com.xlythe.test.adapter'
@@ -26,10 +34,15 @@ android {
         }
     }
     sourceSets {
+        bundledHost.java.srcDir 'src/host/java'
+        extensionWithAdapter.java.srcDir 'src/extension/java'
+        extensionWithAdapter.res.srcDir 'src/extension/res'
         adapter.java.srcDir 'src/extension/java'
         adapter.res.srcDir 'src/extension/res'
     }
 }
+
+configurations.bundledHostImplementation.extendsFrom(configurations.hostImplementation)
 
 dependencies {
     hostImplementation 'com.xlythe:extension-engine'

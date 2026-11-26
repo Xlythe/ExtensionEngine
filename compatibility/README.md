@@ -2,9 +2,10 @@
 
 The test host and extension have distinct UIDs. The host discovers the extension
 through the library manifest query, calls its Java entry point, and checks the
-text inflated from the extension's layout. The host consumes the library through a Gradle composite build and selects
-AppCompat 1.6.1 so its dependency graph supports API 14. The test reports the code package,
-`sourceDir`, and `publicSourceDir` so the installation layout is observable.
+text of a custom view inflated from the extension's layout. The host consumes
+the library through a Gradle composite build and selects AppCompat 1.6.1 to
+support API 14. The test reports the selected class loader, code package,
+`sourceDir`, and `publicSourceDir`.
 
 ## Installation history
 
@@ -27,8 +28,12 @@ AppCompat 1.6.1 so its dependency graph supports API 14. The test reports the co
   explicitly rejected new forward-locked ASEC installs. An API-level check
   alone would miss the distinction between ordinary and protected installs on
   the same device. On API 21 the paths also matched, but ART failed to open
-  the optimized DEX on a forward-locked install. This is why the engine tests
-  whether the class resolves before selecting an explicitly declared adapter. [Android 8.0 installer](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-8.0.0_r1/services/core/java/com/android/server/pm/PackageInstallerService.java#L629-L633)
+  the optimized DEX on a forward-locked install. On APIs 21 and 22, the host resolved the class from the same public APK
+  using a host-private optimization directory. API 23 loaded directly. On
+  API 24, SELinux denied the host directory search on the ASEC mount and
+  Android threw `Resources.NotFoundException` during `createPackageContext`.
+  The host-bundled mapping handled that earlier failure.
+  [DexClassLoader and its private cache](https://developer.android.com/reference/dalvik/system/DexClassLoader) · [Android 8.0 installer](https://github.com/aosp-mirror/platform_frameworks_base/blob/android-8.0.0_r1/services/core/java/com/android/server/pm/PackageInstallerService.java#L629-L633)
 - On Android 17 (API 37), we installed the signed base and French language
   split generated from an app bundle over ADB. A host targeting 37 loaded the
   entry class from the extension and read its French layout text. The exercise
@@ -39,15 +44,21 @@ AppCompat 1.6.1 so its dependency graph supports API 14. The test reports the co
 
 | API | Installation tested | Result |
 | --- | --- | --- |
-| 14 (4.0.2), 17 (4.2.2), 19 (4.4), 21 (5.0) | Ordinary APK | Loaded extension class and layout directly |
-| 14, 17, 19, 21 | Forward-locked extension | Direct load failed. Installing the declared adapter produced `result=PASS` |
-| 25 (7.1.1) | Ordinary and forward-locked extension | Both loaded directly |
-| 37 (Android 17) | Bundle-generated base APK and French split installed together | Loaded directly and read the translated layout text |
+| 14, 17, 19, 21, 22, 23, 24, 25 | Ordinary APK | Loaded the owner directly, including when a host-bundled mapping was available |
+| 14, 17, 19 | Forward-locked private code APK | Loaded the adapter bundled in the host |
+| 21 (5.0), 22 (5.1) | Forward-locked ASEC APK | Retried the installed public APK with the host's private DEX cache |
+| 23 (6.0) | Forward-locked ASEC APK | Loaded the installed extension directly |
+| 24 (7.0) | Forward-locked ASEC APK | Loaded the adapter bundled in the host |
+| 25 (7.1.1) | Forward-locked ASEC APK | Loaded the installed extension directly |
+| 37 (Android 17) | Bundle-generated base APK and French split | Loaded the installed extension and read the translated layout text |
 
-On API 17 the host also rejected an adapter with a different signer and a
-same-signer adapter naming the wrong owner. The public adapter is an opt-in
-packaging option. Previously shipped protected extensions without a readable
-entry point need an author update to use it.
+The owner used above declares no adapter. No companion was installed. On APIs
+14, 17, 19, and 24, the same protected owner failed to load in a host without
+the mapping. On API 24, a differently signed owner with the correct package
+name was rejected even with the mapping present. On APIs 17 and 24 an owner
+that explicitly declared a separate adapter also worked when its verified
+companion was installed. API 17 rejected a companion signed by a different
+key and a same-key companion naming the wrong owner.
 
 ## Run the fixture
 
@@ -62,19 +73,31 @@ adb install -r "$apk"/extension/debug/*.apk
 adb shell am instrument -w com.xlythe.test.host/.LoadTest
 ```
 
-A successful run prints `result=PASS` and `INSTRUMENTATION_CODE: -1`. To test
-the protected layout on API 14 or 17, replace only the test extension on that
-emulator. With no adapter installed the load should fail. Install the adapter
-as an ordinary APK and confirm the same call now succeeds.
+A successful run prints `result=PASS` and `INSTRUMENTATION_CODE: -1`. To
+test a forward-locked installation on APIs 14–25, replace the fixture owner on
+the disposable emulator. The bundled host has the same application ID and
+signer as the original host. It includes a host-only layout with distinct text.
 
 ```sh
+adb install -r "$apk"/bundledHost/debug/*.apk
 adb uninstall com.xlythe.test.extension
 adb push "$apk"/extension/debug/*.apk /data/local/tmp/extension-test.apk
 adb shell pm install -l /data/local/tmp/extension-test.apk
+adb shell dumpsys package com.xlythe.test.extension
+# APIs 14, 17, 19, 24 in the matrix
+adb shell am instrument -w -e codePackage com.xlythe.test.host com.xlythe.test.host/.LoadTest
+# APIs 21, 22, 23, 25 in the matrix
 adb shell am instrument -w com.xlythe.test.host/.LoadTest
-adb install -r "$apk"/adapter/debug/*.apk
-adb shell am instrument -w -e codePackage com.xlythe.test.adapter com.xlythe.test.host/.LoadTest
 ```
+
+The report identifies the installed owner on APIs 21–23 and 25. A
+`PublicApkContext$Loader` identifies the private cache retry.
+`dalvik.system.PathClassLoader` identifies a direct platform load.
+The test also checks that two simultaneous instances use the same class loader.
+
+For the separate-companion case, install the plain host, reinstall the
+`extensionWithAdapter` flavor with `pm install -l`, install the ordinary
+`adapter` APK, and pass `-e codePackage com.xlythe.test.adapter` on API 17 or 24.
 
 To test API 37 split delivery, select the French split even on an English
 emulator. The host requests a French configuration for this test. The expected

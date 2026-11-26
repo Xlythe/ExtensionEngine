@@ -1,8 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <activity android:name="android.app.Activity" android:exported="true">
-            <meta-data android:name="com.xlythe.engine.extension.LEGACY_ADAPTER"
-                android:value="com.xlythe.test.adapter" />
             <intent-filter>
                 <action android:name="com.xlythe.test.host.EXTENSION" />
             </intent-filter>

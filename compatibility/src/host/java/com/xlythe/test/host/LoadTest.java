@@ -47,15 +47,23 @@ public class LoadTest extends Instrumentation {
             if (peer.uid == host.getApplicationInfo().uid) {
                 throw new AssertionError("Expected separate app UIDs");
             }
+            boolean expectUntrusted = "true".equals(options.getString("expectUntrusted"));
             for (App app : Extension.getApps(host)) {
                 if (EXTENSION.equals(app.getPackageName())) {
+                    if (expectUntrusted) throw new AssertionError("Discovered an untrusted owner");
                     Adapter adapter = new Adapter(Extension.getExtension(host, app));
                     String expectedPackage = options.getString("codePackage");
                     if (expectedPackage == null) expectedPackage = EXTENSION;
                     report.putString("codePackage", adapter.getPackageName());
+                    ClassLoader loader = adapter.getClassLoader();
+                    report.putString("classLoader", loader.getClass().getName());
+                    if (loader != Extension.getExtension(host, app).getClassLoader()) {
+                        throw new AssertionError("Two loads of the same installation used different class loaders");
+                    }
                     if (!expectedPackage.equals(adapter.getPackageName())) {
                         throw new AssertionError("Expected code from " + expectedPackage);
                     }
+                    if (host.getPackageName().equals(expectedPackage)) expectedText = "Host adapter loaded";
                     if (!expectedText.equals(adapter.readLabel())) {
                         throw new AssertionError("Extension layout text did not match");
                     }
@@ -64,7 +72,14 @@ public class LoadTest extends Instrumentation {
                     return;
                 }
             }
-            throw new AssertionError("Extension was missing from discovery");
+            if (!expectUntrusted) throw new AssertionError("Extension was missing from discovery");
+            try {
+                Extension.getExtension(host, EXTENSION);
+                throw new AssertionError("Loaded an adapter for an untrusted owner");
+            } catch (Extension.InvalidExtensionException expected) {
+                report.putString("result", "PASS");
+                finish(Activity.RESULT_OK, report);
+            }
         } catch (Throwable error) {
             report.putString("failure", Log.getStackTraceString(error));
             finish(Activity.RESULT_CANCELED, report);

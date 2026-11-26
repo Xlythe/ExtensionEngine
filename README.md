@@ -113,7 +113,29 @@ loader whenever it can resolve the registered entry class. The minimum supported
 For API 14 hosts using Gradle, select an AppCompat release that still supports
 API 14, such as 1.6.1, within the library’s allowed range.
 
-To support an installation with private code, the extension author can ship the
+On APIs 21–25 the engine can retry a missing class from the installed public
+APK using a host-private DEX cache. This needs no extension change or user
+action. On some devices Android denies the host access to the entire package.
+
+For those installs, a host can bundle a compatible entry class and its resources
+in the host APK. Register the class in the **host application's** manifest,
+using the installed extension's exact package name as the suffix. For example:
+
+```xml
+<meta-data android:name="com.xlythe.engine.extension.LEGACY_ADAPTER.com.example.calendar.extension"
+    android:value="com.example.host.CalendarAdapter" />
+```
+
+The bundled class implements the extension methods the host uses. Its constructor
+receives a host package context and its layouts must be available in the host.
+Preserve its name, constructor, and reflective methods in release builds (for
+example, annotate the class with `@Keep`). The engine selects it only below
+API 26, after verifying the registered owner and failing to open its package
+context or resolve its entry point. Users get this support in a host update.
+An already-installed extension needs no metadata changes or companion install.
+The host must have an implementation for each protected extension it supports.
+
+An extension author who distributes an adapter independently can ship the
 host-facing entry class and its resources in a separately installed, publicly
 readable adapter APK. Add the following metadata to the **registered activity**
 in the extension, using the adapter's application ID.
@@ -134,10 +156,9 @@ Sign both packages with the same key. Hosts using certificate pins must register
 each package separately. Discovery returns the owning extension. Its existing
 entry-class metadata (or its default `.Extension` class name) also names the
 class in the adapter. The constructor receives the adapter context so its classes
-and resources come from the same APK. Keep the adapter's public interface
-compatible with the host. The engine selects the adapter only when resolving
-the registered class raises `ClassNotFoundException`, before running its constructor.
-If the required adapter
-is missing or untrusted, loading fails with `InvalidExtensionException`.
+and resources come from the same APK. Keep its public interface compatible with the host. A host-bundled mapping takes
+precedence over a separate adapter on legacy installs. The engine completes
+selection before invoking a constructor. If the required adapter is missing or
+untrusted, loading fails with `InvalidExtensionException`.
 
 See the [compatibility tests and installation history](compatibility/README.md).
