@@ -12,20 +12,12 @@ dependencies {
 
 Loading Extensions
 ----------------
-For hosts targeting Android 11 (API 30) or later, this checkout’s library manifest contributes
-a package visibility query for `${applicationId}.EXTENSION`. Gradle substitutes
-the consuming app's final application ID, including any build variant suffix.
-This covers every extension advertising the default action. If you pass an
-alternate action namespace to `getApps`, declare that action in the host manifest.
-Hosts using release 0.0.5 must also declare their default action themselves.
-
-```xml
-<queries>
-    <intent>
-        <action android:name="com.example.alternate.EXTENSION" />
-    </intent>
-</queries>
-```
+The default discovery action is the host's application ID followed by `.EXTENSION`.
+For example, the host `com.xlythe.saolauncher` queries for
+`com.xlythe.saolauncher.EXTENSION`. In this checkout the library adds that query
+to the host's manifest automatically, using the host variant's final application ID.
+Only hosts using 0.0.5 or a custom discovery action need to add a matching
+`<queries><intent>` entry themselves when targeting Android 11 or later.
 
 Define your extension
 ```java
@@ -82,8 +74,9 @@ runtime behavior.
 
 Creating an Extension
 ----------------
-The first step is to signal to the main app that you are an available extension.
-To do that, we add a custom action to an activity in our app.
+In the **extension APK's manifest**, register an activity for the **host's**
+discovery action. Here the extension's application ID is
+`com.xlythe.unitconverter.sao` and the host's is `com.xlythe.saolauncher`.
 ```xml
 <activity android:name=".Stub" android:exported="true">
     <intent-filter>
@@ -92,7 +85,9 @@ To do that, we add a custom action to an activity in our app.
     <meta-data android:name="extension" android:value="com.xlythe.unitconverter.sao.UnitConverterExtension" />
 </activity>
 ```
-The action points to the main app's package name, and the extension metadata points to the Extension file in our app.
+Use the host's literal action here, or supply it through a custom Gradle manifest
+placeholder if it varies by build. In this manifest, `${applicationId}` expands
+to the extension's own ID. The metadata names the implementation in the extension APK.
 The next step is, obviously, to create that extension file.
 ```java
 package com.xlythe.unitconverter.sao;
@@ -109,7 +104,10 @@ public View getView(Context context) {
 At this point, your extension is done. It's up to the main app to list out what methods it requires from the extension
 and it's up to the extension to fully implement those methods.
 
-Warnings
+Legacy paid extensions
 ----------------
-Currently, extensions do not work with paid apps. On Android 4.2+, paid apps on the Play Store are installed with encryption enabled by default.
-Some development effort has been put into building a proper workaround, but is currently roadblocked. Apps with In App Purchases will work fine.
+The original loader had trouble reading paid extensions on Jelly Bean devices
+using forward-locked installs. V2 explored having the extension serve its own
+APK and remained experimental due to resource and multidex issues. Android has
+since discontinued new installs into those containers. Compatibility with a
+current paid Play distribution has not been verified.

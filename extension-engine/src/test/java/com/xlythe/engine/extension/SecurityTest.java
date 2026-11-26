@@ -26,7 +26,7 @@ import static org.robolectric.Shadows.shadowOf;
 import static org.robolectric.shadow.api.Shadow.extract;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(sdk = {27, 35}, manifest = Config.NONE)
+@Config(minSdk = Config.OLDEST_SDK)
 public class SecurityTest {
     private static final String PEER = "test.extension";
     private static final Signature HOST_CERT = new Signature(new byte[] {1});
