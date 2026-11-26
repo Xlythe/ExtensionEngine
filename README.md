@@ -106,8 +106,38 @@ and it's up to the extension to fully implement those methods.
 
 Legacy paid extensions
 ----------------
-The original loader had trouble reading paid extensions on Jelly Bean devices
-using forward-locked installs. V2 explored having the extension serve its own
-APK and remained experimental due to resource and multidex issues. Android has
-since discontinued new installs into those containers. Compatibility with a
-current paid Play distribution has not been verified.
+Some older installs put executable code in a private APK and expose only a
+resource archive to other UIDs. The engine uses the normal installed-package
+loader whenever it can resolve the registered entry class. The minimum supported API is 14.
+
+For API 14 hosts using Gradle, select an AppCompat release that still supports
+API 14, such as 1.6.1, within the library’s allowed range.
+
+To support an installation with private code, the extension author can ship the
+host-facing entry class and its resources in a separately installed, publicly
+readable adapter APK. Add the following metadata to the **registered activity**
+in the extension, using the adapter's application ID.
+
+```xml
+<meta-data android:name="com.xlythe.engine.extension.LEGACY_ADAPTER"
+    android:value="com.example.calendar.adapter" />
+```
+
+In the adapter's **application** element, name the owning extension.
+
+```xml
+<meta-data android:name="com.xlythe.engine.extension.ADAPTER_OWNER"
+    android:value="com.example.calendar.extension" />
+```
+
+Sign both packages with the same key. Hosts using certificate pins must register
+each package separately. Discovery returns the owning extension. Its existing
+entry-class metadata (or its default `.Extension` class name) also names the
+class in the adapter. The constructor receives the adapter context so its classes
+and resources come from the same APK. Keep the adapter's public interface
+compatible with the host. The engine selects the adapter only when resolving
+the registered class raises `ClassNotFoundException`, before running its constructor.
+If the required adapter
+is missing or untrusted, loading fails with `InvalidExtensionException`.
+
+See the [compatibility tests and installation history](compatibility/README.md).

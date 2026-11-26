@@ -7,6 +7,7 @@ import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.os.Build;
 import android.os.Process;
+import android.os.Bundle;
 
 import com.xlythe.engine.extension.v1.ExtensionContextV1;
 import com.xlythe.engine.extension.v2.ExtensionContextV2;
@@ -42,7 +43,7 @@ public class SecurityTest {
         install(host.getPackageName(), HOST_CERT);
     }
 
-    private void install(String name, Signature... signers) {
+    private PackageInfo install(String name, Signature... signers) {
         PackageInfo info = new PackageInfo();
         info.packageName = name;
         info.applicationInfo = new ApplicationInfo();
@@ -55,6 +56,7 @@ public class SecurityTest {
             signingInfo.setSignatures(signers);
         }
         shadowOf(host.getPackageManager()).installPackage(info);
+        return info;
     }
 
     @Test
@@ -93,6 +95,29 @@ public class SecurityTest {
         assertThrows(SecurityException.class, () -> new ExtensionContextV2(host, PEER));
         assertThrows(Extension.InvalidExtensionException.class,
                 () -> Extension.getExtension(host, new App("claimed extension", PEER)));
+    }
+
+    @Test
+    public void adapterRequiresMatchingOwnerAndCompleteSignerSet() throws Exception {
+        String adapter = "test.adapter";
+        install(PEER, HOST_CERT);
+        PackageInfo info = install(adapter, HOST_CERT);
+        info.applicationInfo.metaData = new Bundle();
+        info.applicationInfo.metaData.putString(Extension.KEY_ADAPTER_OWNER, PEER);
+        shadowOf(host.getPackageManager()).installPackage(info);
+        Security.enforceLegacyAdapter(host, PEER, adapter);
+
+        info.applicationInfo.metaData.putString(Extension.KEY_ADAPTER_OWNER, "test.other");
+        shadowOf(host.getPackageManager()).installPackage(info);
+        assertThrows(SecurityException.class, () -> Security.enforceLegacyAdapter(host, PEER, adapter));
+
+        info = install(adapter, PARTNER_CERT);
+        info.applicationInfo.metaData = new Bundle();
+        info.applicationInfo.metaData.putString(Extension.KEY_ADAPTER_OWNER, PEER);
+        shadowOf(host.getPackageManager()).installPackage(info);
+        Security.addAllowedSigningCertificate(adapter, PARTNER_PIN);
+        assertTrue(Security.isTrustedPackage(host, adapter));
+        assertThrows(SecurityException.class, () -> Security.enforceLegacyAdapter(host, PEER, adapter));
     }
 
     @Test

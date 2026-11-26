@@ -1,0 +1,42 @@
+plugins {
+    id 'com.android.application' version '9.3.1'
+}
+
+android {
+    namespace 'com.xlythe.test'
+    compileSdk 37
+    defaultConfig {
+        minSdk 14
+        versionCode 1
+        targetSdk 37
+    }
+    flavorDimensions 'role'
+    productFlavors {
+        host {
+            dimension 'role'
+            applicationId 'com.xlythe.test.host'
+        }
+        adapter {
+            dimension 'role'
+            applicationId 'com.xlythe.test.adapter'
+        }
+        extension {
+            dimension 'role'
+            applicationId 'com.xlythe.test.extension'
+        }
+    }
+    sourceSets {
+        adapter.java.srcDir 'src/extension/java'
+        adapter.res.srcDir 'src/extension/res'
+    }
+}
+
+dependencies {
+    hostImplementation 'com.xlythe:extension-engine'
+    // Exercise the published API range with a dependency graph that supports API 14.
+    constraints {
+        hostImplementation('androidx.appcompat:appcompat') {
+            version { strictly '1.6.1' }
+        }
+    }
+}

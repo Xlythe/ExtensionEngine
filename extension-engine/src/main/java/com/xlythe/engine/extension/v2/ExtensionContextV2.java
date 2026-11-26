@@ -18,9 +18,9 @@ public class ExtensionContextV2 extends ContextWrapper {
 
     public ExtensionContextV2(Context context, String packageName) throws InvalidCursorException, IOException {
         super(context);
-        mPackageName = packageName;
-        // Use the installed APK verified by the same loader as V1.
-        mClassLoader = new ExtensionContextV1(context, packageName).getClassLoader();
+        ExtensionContextV1 codeContext = new ExtensionContextV1(context, packageName);
+        mPackageName = codeContext.getPackageName();
+        mClassLoader = codeContext.getClassLoader();
     }
 
     @Override

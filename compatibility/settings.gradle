@@ -1,0 +1,20 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = 'extension-compatibility'
+
+includeBuild('..') {
+    dependencySubstitution {
+        substitute module('com.xlythe:extension-engine') using project(':extension-engine')
+    }
+}

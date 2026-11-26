@@ -26,19 +26,31 @@ public class ExtensionContextV1 extends ContextWrapper {
         if (activity == null) {
             throw new SecurityException("No registered extension activity in " + packageName);
         }
-        attachBaseContext(createExtensionContext(context, packageName));
         extensionClassName = activity.metaData != null && activity.metaData.containsKey(Extension.KEY_EXTENSION)
                 ? activity.metaData.getString(Extension.KEY_EXTENSION) : packageName + Extension.CLASS_NAME;
+        attachBaseContext(createExtensionContext(context, activity, extensionClassName));
     }
 
     public String getExtensionClassName() {
         return extensionClassName;
     }
 
-    private static Context createExtensionContext(Context context, String packageName) throws IllegalArgumentException {
+    private static Context createExtensionContext(Context context, ActivityInfo activity, String className) {
+        String packageName = activity.packageName;
+        int flags = Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY;
         try {
             Security.enforceTrustedPackage(context, packageName);
-            Context newContext = context.createPackageContext(packageName, Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+            Context newContext = context.createPackageContext(packageName, flags);
+            String adapter = activity.metaData == null ? null : activity.metaData.getString(Extension.KEY_LEGACY_ADAPTER);
+            if (adapter != null) {
+                try {
+                    // Test the entry point without running its initializer or constructor.
+                    newContext.getClassLoader().loadClass(className);
+                } catch (ClassNotFoundException unavailable) {
+                    Security.enforceLegacyAdapter(context, packageName, adapter);
+                    newContext = context.createPackageContext(adapter, flags);
+                }
+            }
 
             // Update language
             newContext.getResources().updateConfiguration(new Configuration(context.getResources().getConfiguration()), context.getResources().getDisplayMetrics());
@@ -46,7 +58,7 @@ public class ExtensionContextV1 extends ContextWrapper {
             return newContext;
         } catch (PackageManager.NameNotFoundException e) {
             Log.e(TAG, "Failed to create extension context", e);
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Could not load " + packageName, e);
         }
     }
 }

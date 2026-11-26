@@ -23,6 +23,8 @@ public class Extension extends ContextWrapper {
 
     public static final String ACTION_EXTENSION = ".EXTENSION";
     public static final String KEY_EXTENSION = "extension";
+    public static final String KEY_LEGACY_ADAPTER = "com.xlythe.engine.extension.LEGACY_ADAPTER";
+    public static final String KEY_ADAPTER_OWNER = "com.xlythe.engine.extension.ADAPTER_OWNER";
     public static final String CLASS_NAME = ".Extension";
 
     /**

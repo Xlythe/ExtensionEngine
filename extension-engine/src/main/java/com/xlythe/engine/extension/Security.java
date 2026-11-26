@@ -42,14 +42,33 @@ public class Security {
         }
     }
 
+    /** Verifies the companion's own trust and its reciprocal registration for the owner. */
+    public static void enforceLegacyAdapter(Context context, String owner, String adapter)
+            throws PackageManager.NameNotFoundException {
+        enforceTrustedPackage(context, adapter);
+        PackageManager manager = context.getPackageManager();
+        PackageInfo ownerInfo = manager.getPackageInfo(owner, signingFlags());
+        PackageInfo adapterInfo = manager.getPackageInfo(adapter, signingFlags() | PackageManager.GET_META_DATA);
+        Set<Signature> ownerSigners = currentSigners(ownerInfo);
+        if (ownerSigners.isEmpty() || !ownerSigners.equals(currentSigners(adapterInfo))
+                || adapterInfo.applicationInfo == null || adapterInfo.applicationInfo.metaData == null
+                || !owner.equals(adapterInfo.applicationInfo.metaData.getString(Extension.KEY_ADAPTER_OWNER))) {
+            throw new SecurityException("Invalid legacy adapter " + adapter + " for " + owner);
+        }
+    }
+
+    private static int signingFlags() {
+        return Build.VERSION.SDK_INT >= 28
+                ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
+    }
+
     static boolean isTrustedPackage(Context context, String packageName, byte[]... signatureFilter) {
         if (packageName == null || packageName.isEmpty()) {
             return false;
         }
         PackageManager manager = context.getPackageManager();
         try {
-            int flags = Build.VERSION.SDK_INT >= 28
-                    ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
+            int flags = signingFlags();
             PackageInfo host = manager.getPackageInfo(context.getPackageName(), flags);
             PackageInfo peer = manager.getPackageInfo(packageName, flags);
             if (!context.getPackageName().equals(host.packageName) || !packageName.equals(peer.packageName)
