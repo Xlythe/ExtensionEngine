@@ -10,7 +10,6 @@ import android.util.Log;
 import android.util.Pair;
 
 import com.xlythe.engine.extension.v1.ExtensionContextV1;
-import com.xlythe.engine.extension.v2.ExtensionContextV2;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -22,30 +21,16 @@ public class Extension extends ContextWrapper {
     public static final String TAG = "Extension";
     public static final boolean DEBUG = false;
 
-    // ExtensionContext is not ready yet. :( The idea was to more properly build a Context.
-    // Unfortunately, it has bugs with loading resources on from the extension and, despite
-    // efforts, does not support multidex. If/when this method is perfected, we'll be able to
-    // use paid apps as extensions.
-    private static final boolean USE_LEGACY_STRATEGY = true;
-
     public static final String ACTION_EXTENSION = ".EXTENSION";
     public static final String KEY_EXTENSION = "extension";
     public static final String CLASS_NAME = ".Extension";
 
-    /**
-     * Returns a list of installed apps that are registered as extensions. Optionally you can pass
-     * in a signatures field that lists the signatures the extensions are required to be signed
-     * with. Passing in no signatures means all extensions will be listed.
-     */
+    /** Lists trusted extensions. Optional raw signing certificates further restrict the results. */
     public static List<App> getApps(Context context, byte[]... signatures) {
         return getApps(context, context.getPackageName(), signatures);
     }
 
-    /**
-     * Returns a list of installed apps that are registered as extensions. Optionally you can pass
-     * in a signatures field that lists the signatures the extensions are required to be signed
-     * with. Passing in no signatures means all extensions will be listed.
-     */
+    /** Queries an alternate action namespace using the same host trust policy. */
     public static List<App> getApps(Context context, String packageName, byte[]... signatures) {
         List<App> apps = new LinkedList<>();
         PackageManager manager = context.getPackageManager();
@@ -53,14 +38,15 @@ public class Extension extends ContextWrapper {
         Intent intent = new Intent(packageName + ACTION_EXTENSION);
         try {
             for (ResolveInfo info : manager.queryIntentActivities(intent, 0)) {
-                // Only check signatures if we were given any.
-                if (signatures.length > 0) {
-                    if (!Security.validateSignature(manager, info.activityInfo.applicationInfo.packageName, signatures)) {
-                        Log.w(TAG, info.activityInfo.applicationInfo.packageName + " failed the security check");
-                        continue;
-                    }
+                ActivityInfo activity = info.activityInfo;
+                if (activity == null || !ExtensionResources.isOwnedActivity(activity, activity.packageName)) {
+                    continue;
                 }
-                apps.add(new App(info.loadLabel(manager).toString(), info.activityInfo.applicationInfo.packageName));
+                if (!Security.isTrustedPackage(context, activity.packageName, signatures)) {
+                    Log.w(TAG, "Ignoring untrusted extension " + activity.packageName);
+                    continue;
+                }
+                apps.add(new App(info.loadLabel(manager).toString(), activity.packageName, packageName));
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to query extension apps", e);
@@ -70,27 +56,20 @@ public class Extension extends ContextWrapper {
     }
 
     public static Extension getExtension(Context context, App app) throws InvalidExtensionException {
-        return getExtension(context, app.getPackageName());
+        return getExtension(context, app.getPackageName(),
+                app.actionPackage == null ? context.getPackageName() : app.actionPackage);
     }
 
     public static Extension getExtension(Context context, String packageName) throws InvalidExtensionException {
+        return getExtension(context, packageName, context.getPackageName());
+    }
+
+    private static Extension getExtension(Context context, String packageName, String actionPackage)
+            throws InvalidExtensionException {
         try {
-            Context packageContext;
-            if (USE_LEGACY_STRATEGY) {
-                packageContext = new ExtensionContextV1(context, packageName);
-            } else {
-                packageContext = new ExtensionContextV2(context, packageName);
-            }
-            ClassLoader loader = packageContext.getClassLoader();
-
-            // By default, we look for .Extension in the root package, but this may be overridden with metadata.
-            String clazz = packageName + CLASS_NAME;
-            ActivityInfo ai = ExtensionResources.getActivityInfo(context, packageName);
-            if (ai != null && ai.metaData != null && ai.metaData.containsKey(KEY_EXTENSION)) {
-                clazz = ai.metaData.getString(KEY_EXTENSION);
-            }
-
-            Object extension = newInstance(packageContext, loader.loadClass(clazz));
+            ExtensionContextV1 packageContext = new ExtensionContextV1(context, packageName, actionPackage);
+            Class<?> clazz = packageContext.getClassLoader().loadClass(packageContext.getExtensionClassName());
+            Object extension = newInstance(packageContext, clazz);
             if (DEBUG) {
                 printMethods(extension.getClass());
             }

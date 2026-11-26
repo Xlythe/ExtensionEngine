@@ -37,8 +37,8 @@ public class SAOExtension extends Extension {
 
 ```
 
-Make a call to 'Extension.getApps(Context, byte[]...)' for a list of currently installed extensions.
-Use 'Extension.getExtension(Context, String)' to load each extension.
+Call `Extension.getApps(context)` to discover trusted extensions. Pass the resulting
+`App` to `Extension.getExtension(context, app)` to load its registered class.
 ```java
 for (App app : Extension.getApps(this)) {
   SAOExtension saoExtension = new SAOExtension(Extension.getExtension(this, app));
@@ -47,12 +47,40 @@ for (App app : Extension.getApps(this)) {
 ```
 
 
+### Trusting an extension
+
+The following trust policy and registration API are available in this checkout.
+
+The engine loads extension code into the host process with the host's privileges.
+Discovery and loading both check the installed package and its current APK signing
+certificates. By default, the complete signer set must match the host's, including
+in debug builds. Direct loads also require an activity registered for the host's
+extension action.
+
+For a separately signed extension, register its exact application ID and SHA-256
+app signing certificate fingerprint in the host before discovery or loading, for
+example in `Application.onCreate()`.
+
+```java
+Security.addAllowedSigningCertificate("com.example.calendar.extension", CALENDAR_SIGNING_SHA256);
+```
+
+Use the fingerprint of the certificate on the distributed APK. Play App Signing
+shows this under **App signing key certificate**. Pins accept plain hex or
+colon-separated hex pairs, apply to single-signer APKs, and last for the current
+process. Register both fingerprints during a planned key rotation. The optional
+raw certificate arguments to `getApps` further filter the trusted results.
+
+This library compiles against Android API 37 and targets API 37 for its test APK
+and lint checks. Set `targetSdk 37` in the consuming app to opt into Android 17
+runtime behavior.
+
 Creating an Extension
 ----------------
 The first step is to signal to the main app that you are an available extension.
 To do that, we add a custom action to an activity in our app.
 ```xml
-<activity android:name=".Stub">
+<activity android:name=".Stub" android:exported="true">
     <intent-filter>
         <action android:name="com.xlythe.saolauncher.EXTENSION" />
     </intent-filter>

@@ -12,7 +12,15 @@ public class App implements Serializable {
     private final String name;
     private final String packageName;
 
+    // Only an in-process discovery result can select an alternate action namespace.
+    final transient String actionPackage;
+
     public App(String name, String packageName) {
+        this(name, packageName, null);
+    }
+
+    App(String name, String packageName, String actionPackage) {
+        this.actionPackage = actionPackage;
         this.name = name;
         this.packageName = packageName;
     }

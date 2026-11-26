@@ -3,17 +3,19 @@ package com.xlythe.engine.extension.v2;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
 import android.util.Log;
 
-import com.xlythe.engine.extension.App;
 import com.xlythe.engine.extension.Extension;
+import com.xlythe.engine.extension.Security;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -21,7 +23,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 
 import androidx.annotation.NonNull;
@@ -30,16 +31,7 @@ import androidx.annotation.Nullable;
 import static com.xlythe.engine.extension.Extension.DEBUG;
 import static com.xlythe.engine.extension.Extension.TAG;
 
-/**
- * A file provider allows other apps installed on the user's file to request us for files. This one
- * specifically provides the dex files needed to load our class into memory. Extensions should add
- * the following lines of code to their AndroidManifest.xml to enable the provider.
- *
- * <provider
- *   android:authorities="your.package.name.DexFileProvider"
- *   android:name="com.xlythe.engine.extension.v2.DexFileProvider"
- *   android:exported="true" />
- */
+/** Serves installed APKs to verified hosts using the legacy DEX provider protocol. */
 public class DexFileProvider extends ContentProvider implements ContentProvider.PipeDataWriter<InputStream> {
     public static final String PATH_COUNT = "count";
     public static final String PATH_DEX = "dex";
@@ -136,6 +128,7 @@ public class DexFileProvider extends ContentProvider implements ContentProvider.
     @Nullable
     @Override
     public ParcelFileDescriptor openFile(@NonNull Uri uri, @NonNull String mode) throws FileNotFoundException {
+        verifyCaller();
         // Try to open an asset with the given name.
         if (DEBUG) Log.d(TAG, "openFile: " + uri);
         try {
@@ -179,23 +172,23 @@ public class DexFileProvider extends ContentProvider implements ContentProvider.
         }
     }
 
-    /**
-     * Only available on API 19+. Verifies that the caller is a supported theme.
-     */
-    private void verifyCaller() throws SecurityException {
-        if (Build.VERSION.SDK_INT < 19) {
-            return;
-        }
-
-        // We'll query for ourselves to see if we show up as an available extension for this caller.
-        List<App> apps = Extension.getApps(getContext(), getCallingPackage());
-        for (App app : apps) {
-            if (app.getPackageName().equals(getContext().getPackageName())) {
-                return;
+    private void verifyCaller() {
+        Context context = getContext();
+        String[] packages = context.getPackageManager().getPackagesForUid(Binder.getCallingUid());
+        String callingPackage = Build.VERSION.SDK_INT >= 19 ? getCallingPackage() : null;
+        if (packages != null) {
+            for (String candidate : packages) {
+                if (Build.VERSION.SDK_INT >= 19 && !candidate.equals(callingPackage)) {
+                    continue;
+                }
+                Intent registration = new Intent(candidate + Extension.ACTION_EXTENSION)
+                        .setPackage(context.getPackageName());
+                if (!context.getPackageManager().queryIntentActivities(registration, 0).isEmpty()) {
+                    Security.enforceTrustedPackage(context, candidate);
+                    return;
+                }
             }
         }
-
-        // If we got here, then we couldn't verify the caller.
-        throw new SecurityException("Caller [" + getCallingPackage() + "] is not a registered extension.");
+        throw new SecurityException("Caller is not a registered host");
     }
 }

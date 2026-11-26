@@ -45,16 +45,27 @@ public class ExtensionResources {
     }
 
     /**
-     * Returns a list of installed apps that are registered as extensions
+     * Returns the extension activity registered by this package, or null if none is visible.
      */
     public static ActivityInfo getActivityInfo(Context context, String packageName) {
+        return getActivityInfo(context, packageName, context.getPackageName());
+    }
+
+    static boolean isOwnedActivity(ActivityInfo activity, String packageName) {
+        return packageName != null && !packageName.isEmpty() && packageName.equals(activity.packageName)
+                && activity.applicationInfo != null && packageName.equals(activity.applicationInfo.packageName);
+    }
+
+    public static ActivityInfo getActivityInfo(Context context, String packageName, String actionPackage) {
         PackageManager manager = context.getPackageManager();
 
-        Intent intent = new Intent(context.getPackageName() + Extension.ACTION_EXTENSION);
+        Intent intent = new Intent(actionPackage + Extension.ACTION_EXTENSION);
         intent.setPackage(packageName);
         try {
             for (ResolveInfo info : manager.queryIntentActivities(intent, PackageManager.GET_META_DATA)) {
-                return info.activityInfo;
+                if (info.activityInfo != null && isOwnedActivity(info.activityInfo, packageName)) {
+                    return info.activityInfo;
+                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to get activity info", e);
