@@ -1,5 +1,6 @@
 plugins {
     id 'com.android.application' version '9.3.1'
+    id 'com.android.dynamic-feature' version '9.3.1' apply false
 }
 
 android {

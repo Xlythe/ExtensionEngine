@@ -34,7 +34,8 @@ public class ExtensionContextV1 extends ContextWrapper {
         boolean legacy = Build.VERSION.SDK_INT < 26;
         Context selected;
         try {
-            selected = loadInstalled(context, packageName, className, legacy || adapter != null);
+            selected = loadInstalled(context, packageName, className, legacy || adapter != null,
+                    Build.VERSION.SDK_INT >= 26 ? activity.splitName : null);
         } catch (ClassNotFoundException | PackageManager.NameNotFoundException | Resources.NotFoundException unavailable) {
             // Android can reject the ASEC resource directory before it even attempts to load code.
             Security.enforceTrustedPackage(context, packageName);
@@ -45,7 +46,7 @@ public class ExtensionContextV1 extends ContextWrapper {
                     className = bundled;
                 } else if (adapter != null && (legacy || unavailable instanceof ClassNotFoundException)) {
                     Security.enforceLegacyAdapter(context, packageName, adapter);
-                    selected = loadInstalled(context, adapter, className, true);
+                    selected = loadInstalled(context, adapter, className, true, null);
                 } else {
                     throw new IllegalArgumentException("Could not load " + packageName, unavailable);
                 }
@@ -62,9 +63,16 @@ public class ExtensionContextV1 extends ContextWrapper {
         attachBaseContext(selected);
     }
 
-    private static Context loadInstalled(Context host, String packageName, String className, boolean checkEntry)
+    private static Context loadInstalled(Context host, String packageName, String className, boolean checkEntry,
+                                         String splitName)
             throws PackageManager.NameNotFoundException, ClassNotFoundException {
         Context extension = host.createPackageContext(packageName, CODE_FLAGS);
+        if (Build.VERSION.SDK_INT >= 26 && splitName != null) {
+            extension = extension.createContextForSplit(splitName);
+        }
+        if (Build.VERSION.SDK_INT >= 26 && extension.getApplicationInfo().splitSourceDirs != null) {
+            return findSplitEntry(host, extension, packageName, className);
+        }
         if (Build.VERSION.SDK_INT < 21) {
             // A primary-DEX entry may first reference a secondary class long after construction.
             extension = PublicApkContext.load(host, extension);
@@ -84,10 +92,45 @@ public class ExtensionContextV1 extends ContextWrapper {
         return extension;
     }
 
+    @androidx.annotation.RequiresApi(26)
+    private static Context findSplitEntry(Context host, Context extension, String packageName, String className)
+            throws ClassNotFoundException, PackageManager.NameNotFoundException {
+        // Bundle delivery can advertise the feature activity in the base manifest.
+        try {
+            extension.getClassLoader().loadClass(className);
+            return extension;
+        } catch (ClassNotFoundException missing) {
+            String[] splits = host.getPackageManager().getPackageInfo(packageName, 0).splitNames;
+            if (splits == null) throw missing;
+            for (String split : splits) {
+                Context candidate = extension.createContextForSplit(split);
+                if (candidate.getClassLoader() == extension.getClassLoader()) continue;
+                try {
+                    candidate.getClassLoader().loadClass(className);
+                    return candidate;
+                } catch (ClassNotFoundException absentFromSplit) {
+                    // Only the context that can resolve the entry supplies its resources.
+                }
+            }
+            throw missing;
+        }
+    }
+
     private static String getBundledAdapter(Context host, String owner) throws PackageManager.NameNotFoundException {
         ApplicationInfo app = host.getPackageManager().getApplicationInfo(host.getPackageName(), PackageManager.GET_META_DATA);
         // Only the host can choose which of its own classes may be constructed.
-        return app.metaData == null ? null : app.metaData.getString(Extension.KEY_LEGACY_ADAPTER + "." + owner);
+        if (app.metaData != null) {
+            String named = app.metaData.getString(owner + ".LEGACY_ADAPTER");
+            if (named == null) named = app.metaData.getString(Extension.KEY_LEGACY_ADAPTER + "." + owner);
+            if (named != null) return named;
+        }
+        String conventional = owner + Extension.CLASS_NAME;
+        try {
+            Class<?> type = host.getClassLoader().loadClass(conventional);
+            return Extension.LegacyAdapter.class.isAssignableFrom(type) ? conventional : null;
+        } catch (ClassNotFoundException absent) {
+            return null;
+        }
     }
 
     public String getExtensionClassName() {

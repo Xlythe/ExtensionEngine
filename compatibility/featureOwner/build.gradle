@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.xlythe.test.featureowner'
+    compileSdk 37
+    defaultConfig {
+        applicationId 'com.xlythe.test.extension'
+        minSdk 26
+        targetSdk 37
+        manifestPlaceholders = [isolatedSplits: providers.gradleProperty("isolatedSplits").getOrElse("true")]
+        versionCode 2
+        ndk { abiFilters 'x86_64', 'arm64-v8a' }
+    }
+    dynamicFeatures = [':feature']
+}

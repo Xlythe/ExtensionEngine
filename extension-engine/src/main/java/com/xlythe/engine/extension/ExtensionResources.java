@@ -18,9 +18,10 @@ public class ExtensionResources {
         if (name == null) return null;
 
         // Grab from extension
-        int id = getResources(context, extension).getIdentifier(name, "drawable", extension);
+        Resources resources = getResources(context, extension);
+        int id = resources.getIdentifier(name, "drawable", extension);
         if (id != 0) {
-            return getResources(context, extension).getDrawable(id);
+            return resources.getDrawable(id);
         }
 
         // No drawable in the extension, grab from app

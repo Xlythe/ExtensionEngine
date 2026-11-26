@@ -11,13 +11,17 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.withInputStream { localProperties.load(it) }
 }
 
+def measureUnitCoverage = providers.gradleProperty("coverage").isPresent()
+
 android {
     namespace 'com.xlythe.engine.extension'
     compileSdk 37
 
     defaultConfig {
         minSdk 14
+        consumerProguardFiles "consumer-rules.pro"
     }
+    buildTypes.debug.enableUnitTestCoverage = measureUnitCoverage
     testOptions {
         unitTests {
             includeAndroidResources = true
@@ -37,6 +41,16 @@ android {
         singleVariant("release") {
             withSourcesJar()
             withJavadocJar()
+        }
+    }
+}
+
+if (measureUnitCoverage) {
+    androidComponents.onVariants(androidComponents.selector().withBuildType("debug")) { variant ->
+        variant.unitTest.configureTestTask { task ->
+            // Robolectric loads application classes in a sandbox without a code-source location.
+            task.jacoco.includeNoLocationClasses = true
+            task.jacoco.includes = ['com.xlythe.engine.extension.*']
         }
     }
 }

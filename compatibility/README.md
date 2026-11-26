@@ -45,7 +45,7 @@ support API 14. The test reports the selected class loader, code package,
 
 | API | Installation tested | Result |
 | --- | --- | --- |
-| 14, 17, 19, 21, 22, 23, 24, 25 | Ordinary APK | Loaded the owner directly, including when a host-bundled mapping was available |
+| 14, 17, 19, 21, 22, 23, 24, 25 | Ordinary APK | Loaded the owner directly, including when a host-bundled adapter was available |
 | 14, 17, 19 | Forward-locked private code APK | Loaded the adapter bundled in the host |
 | 21 (5.0), 22 (5.1) | Forward-locked ASEC APK | Retried the installed public APK with the host's private DEX cache |
 | 23 (6.0) | Forward-locked ASEC APK | Loaded the installed extension directly |
@@ -55,8 +55,8 @@ support API 14. The test reports the selected class loader, code package,
 
 The owner used above declares no adapter. No companion was installed. On APIs
 14, 17, 19, and 24, the same protected owner failed to load in a host without
-the mapping. On API 24, a differently signed owner with the correct package
-name was rejected even with the mapping present. On APIs 17 and 24 an owner
+the adapter. On API 24, a differently signed owner with the correct package
+name was rejected even with the adapter present. On APIs 17 and 24 an owner
 that explicitly declared a separate adapter also worked when its verified
 companion was installed. API 17 rejected a companion signed by a different
 key and a same-key companion naming the wrong owner.
@@ -67,7 +67,7 @@ Use a disposable emulator, set `ANDROID_SERIAL` to its serial number, and run
 from the repository root with the Android SDK and Gradle 9.6.1 available.
 
 ```sh
-gradle -p compatibility assembleDebug bundleExtensionDebug
+gradle -p compatibility :assembleDebug :bundleExtensionDebug
 apk=compatibility/build/outputs/apk
 adb install -r "$apk"/host/debug/*.apk
 adb install -r "$apk"/extension/debug/*.apk
@@ -151,3 +151,113 @@ done
 ```
 
 For API 37 use each generated bundle in the French split procedure above.
+
+
+## Packaging an adapter for an unreadable historical install
+
+The host's UID must be able to execute an implementation of the extension's
+methods. If neither the code APK nor a public implementation is available, the
+loader reports `InvalidExtensionException`. Signing both apps with the same key
+establishes trust but does not grant filesystem access to the other UID.
+
+For a host-bundled fallback, ship the implementation and its resources in
+the host or in an Android library the host consumes. Name the class
+`<owner application ID>.Extension` and have it implement
+`com.xlythe.engine.extension.Extension.LegacyAdapter`. The engine checks the
+installed owner, then looks up that fixed class name on the legacy fallback
+path. The marker opts the host class in. The library supplies its shrinker rule.
+No manifest mapping, runtime registration, or separate install is needed with
+this convention. The constructor receives the host context.
+
+A publisher using a different class name can declare it in the host
+application manifest, including through an adapter AAR's manifest merger.
+
+```xml
+<meta-data android:name="com.example.calendar.extension.LEGACY_ADAPTER"
+    android:value="com.example.host.CalendarAdapter" />
+```
+
+The application ID before `.LEGACY_ADAPTER` identifies the installed owner.
+Mark custom adapters with the same interface to keep their reflective methods
+in release builds. The earlier PR spelling is accepted for existing host builds.
+
+An extension author who distributes an adapter independently can ship the
+host-facing entry class and its resources in a separately installed, publicly
+readable adapter APK. Add the following metadata to the **registered activity**
+in the extension, using the adapter's application ID.
+
+```xml
+<meta-data android:name="com.xlythe.engine.extension.LEGACY_ADAPTER"
+    android:value="com.example.calendar.adapter" />
+```
+
+In the adapter's **application** element, name the owning extension.
+
+```xml
+<meta-data android:name="com.xlythe.engine.extension.ADAPTER_OWNER"
+    android:value="com.example.calendar.extension" />
+```
+
+Sign both packages with the same key. Hosts using certificate pins must register
+each package separately. Discovery returns the owning extension. Its existing
+entry-class metadata (or its default `.Extension` class name) also names the
+class in the adapter. The constructor receives the adapter context so its classes
+and resources come from the same APK. Keep its public interface compatible with the host. A host-bundled mapping takes
+precedence over a separate adapter on legacy installs. The engine completes
+selection before invoking a constructor. If the required adapter is missing or
+untrusted, loading fails with `InvalidExtensionException`.
+
+## API 37 feature delivery
+
+The `featureOwner` fixture registers an on-demand extension and packages its
+entry class, custom view, translations, mdpi/xxhdpi drawables and JNI library in
+the feature. The host tests both public loaders each time the package changes.
+On the x86_64 mdpi emulator we exercised these installs:
+
+| Installed state | Observed result |
+| --- | --- |
+| Two real APK signers | The same set in reversed order loaded. A peer with only one signer from the host set was rejected. |
+| Signed update with a proof-of-rotation lineage | Android accepted the update. The previous current key no longer matched the host. Registering the new signer pin restored loading. |
+| ADB incremental install of a v4-signed three-DEX APK | The host invoked the entry and inflated its view. |
+| Standalone three-DEX owner, then replacement by the feature owner's base alone | Standalone code loaded. Loading the absent feature returned `InvalidExtensionException`. |
+| Feature plus its ABI and density splits, French requested | The feature inflated the mdpi drawable and used its default language. |
+| Added French split to the existing install, then removed it | The host read French, then the default string on the next load. |
+| Attempted partial removal of the feature with required split types | Package Manager rejected the session. The previous install still loaded. A full replacement with base alone removed the feature. |
+| Complete split set installed with the base supplied last | Code, mdpi resources and the French translation loaded. |
+| French split signed by a different key | Package Manager rejected the session. The prior signed installation passed the same probe. |
+
+JNI via `System.loadLibrary` passed with normal split loading. With
+`android:isolatedSplits="true"`, the same call raised `UnsatisfiedLinkError`
+even with the matching ABI split installed. The Java entry and split-resource
+checks still passed. Chromium documents the missing native search path for an
+isolated split class loader. [Isolated split loader behavior](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/android_isolated_splits.md)
+
+To reproduce, build the feature bundle using NDK 27.2.12479018. Use the
+device spec with French enabled from the split procedure above. Run each
+variant on a disposable x86_64 mdpi API 37 emulator with the plain fixture host
+installed and its serial in `ANDROID_SERIAL`.
+
+```sh
+for isolated in true false; do
+    out=$(mktemp -d)
+    gradle -p compatibility -PisolatedSplits="$isolated" :featureOwner:bundleDebug
+    bundletool build-apks --bundle=compatibility/featureOwner/build/outputs/bundle/debug/featureOwner-debug.aab --output="$out/set.apks" --ks="$HOME/.android/debug.keystore" --ks-key-alias=androiddebugkey --ks-pass=pass:android --key-pass=pass:android
+    bundletool extract-apks --apks="$out/set.apks" --device-spec="$french_device_spec" --modules=base,feature --output-dir="$out/selected"
+    require_native=true
+    if [ "$isolated" = true ]; then require_native=false; fi
+    compatibility/check_feature_install.sh "$out/selected" "$require_native"
+done
+```
+
+For unit-test coverage run
+`gradle -Pcoverage :extension-engine:createDebugUnitTestCoverageReport`.
+The main loading path constructs `ExtensionContextV1`. The published
+`ExtensionContextV2` constructor delegates to it and has direct device tests.
+`JointClassLoader` is a deprecated JVM bytecode API with no callers in the
+engine. Its tests cover defining a class and delegating resource lookup.
+The manifest-registered `DexFileProvider` serves older clients independently
+of the loading path. Its public pipe callback remains for API compatibility.
+
+The report in `extension-engine/build/reports/coverage/test/debug/` measures
+JVM tests only. The installed-APK probes above exercise the platform class
+loaders and Package Manager on devices.

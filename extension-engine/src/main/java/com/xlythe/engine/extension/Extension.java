@@ -14,6 +14,8 @@ import com.xlythe.engine.extension.v1.ExtensionContextV1;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -26,6 +28,9 @@ public class Extension extends ContextWrapper {
     public static final String KEY_LEGACY_ADAPTER = "com.xlythe.engine.extension.LEGACY_ADAPTER";
     public static final String KEY_ADAPTER_OWNER = "com.xlythe.engine.extension.ADAPTER_OWNER";
     public static final String CLASS_NAME = ".Extension";
+
+    /** Marks an owner-package .Extension class bundled by the host for automatic legacy fallback. */
+    public interface LegacyAdapter {}
 
     /**
      * Returns a list of installed apps that are registered as extensions. Optionally you can pass
@@ -43,6 +48,7 @@ public class Extension extends ContextWrapper {
      */
     public static List<App> getApps(Context context, String packageName, byte[]... signatures) {
         List<App> apps = new LinkedList<>();
+        Set<String> seen = new HashSet<>();
         PackageManager manager = context.getPackageManager();
 
         Intent intent = new Intent(packageName + ACTION_EXTENSION);
@@ -52,6 +58,7 @@ public class Extension extends ContextWrapper {
                 if (activity == null || !ExtensionResources.isOwnedActivity(activity, activity.packageName)) {
                     continue;
                 }
+                if (!seen.add(activity.packageName)) continue;
                 if (!Security.isTrustedPackage(context, activity.packageName, signatures)) {
                     Log.w(TAG, "Ignoring untrusted extension " + activity.packageName);
                     continue;
@@ -80,16 +87,13 @@ public class Extension extends ContextWrapper {
             ExtensionContextV1 packageContext = new ExtensionContextV1(context, packageName, actionPackage);
             Class<?> clazz = packageContext.getClassLoader().loadClass(packageContext.getExtensionClassName());
             Object extension = newInstance(packageContext, clazz);
-            if (DEBUG) {
-                printMethods(extension.getClass());
-            }
-
             return new Extension(packageContext, extension);
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to load extension", e);
+        } catch (Exception | LinkageError unavailable) {
+            Log.e(TAG, "Failed to load extension", unavailable);
+            InvalidExtensionException failure = new InvalidExtensionException();
+            failure.initCause(unavailable);
+            throw failure;
         }
-
-        throw new InvalidExtensionException();
     }
 
     /**
@@ -109,22 +113,6 @@ public class Extension extends ContextWrapper {
         return clazz.newInstance();
     }
 
-    private static void printMethods(Class<?> clazz) {
-        try {
-            Log.d(TAG, "-----------------");
-            Log.d(TAG, clazz.getName() + " methods");
-            for (Method m : clazz.getDeclaredMethods()) {
-                Log.d(TAG, m.getName());
-            }
-            Log.d(TAG, "-----------------");
-            if (clazz.getSuperclass() != null) {
-                printMethods(clazz.getSuperclass());
-            }
-        } catch (IllegalArgumentException e) {
-            e.printStackTrace();
-        }
-    }
-
     public static class InvalidExtensionException extends Exception {}
 
     // The object from the other side.
@@ -136,12 +124,7 @@ public class Extension extends ContextWrapper {
     }
 
     protected Extension(Extension extension) {
-        super(extension);
-        mObj = extension.getObject();
-    }
-
-    private Object getObject() {
-        return mObj;
+        this(extension, extension.mObj);
     }
 
     protected Object invoke(String methodName, ReflectionPair... parameters) {

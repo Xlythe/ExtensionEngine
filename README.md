@@ -104,67 +104,13 @@ public View getView(Context context) {
 At this point, your extension is done. It's up to the main app to list out what methods it requires from the extension
 and it's up to the extension to fully implement those methods.
 
-Legacy paid extensions
-----------------
-Some older installs put executable code in a private APK and expose only a
-resource archive to other UIDs. The minimum supported API is 14.
+Package loading
+---------------
+Both public entry points handle readable multidex APKs, installed feature code,
+and configuration splits inside the library. Hosts call the same discovery and
+loading methods across supported Android versions (API 14 and up).
 
-On APIs 14–20 the engine checks a verified, readable APK for secondary DEX
-files before loading its entry class. If present, the engine loads the primary
-and secondary DEX together so extension methods and custom views can reference
-classes in any of them. The host uses its private cache for the secondary files.
-The public V2 context uses the same selected package for classes, resources,
-and layout inflation as `Extension.getExtension()`.
-
-For API 14 hosts using Gradle, select an AppCompat release that still supports
-API 14, such as 1.6.1, within the library’s allowed range.
-
-On APIs 21–25 the engine can retry a missing class from the installed public
-APK using a host-private DEX cache. This needs no extension change or user
-action. On some devices Android denies the host access to the entire package.
-
-For those installs, a host can bundle a compatible entry class and its resources
-in the host APK. Register the class in the **host application's** manifest,
-using the installed extension's exact package name as the suffix. For example:
-
-```xml
-<meta-data android:name="com.xlythe.engine.extension.LEGACY_ADAPTER.com.example.calendar.extension"
-    android:value="com.example.host.CalendarAdapter" />
-```
-
-The bundled class implements the extension methods the host uses. Its constructor
-receives a host package context and its layouts must be available in the host.
-Preserve its name, constructor, and reflective methods in release builds (for
-example, annotate the class with `@Keep`). The engine selects it only below
-API 26, after verifying the registered owner and failing to open its package
-context or resolve its entry point. Users get this support in a host update.
-An already-installed extension needs no metadata changes or companion install.
-The host must have an implementation for each protected extension it supports.
-
-An extension author who distributes an adapter independently can ship the
-host-facing entry class and its resources in a separately installed, publicly
-readable adapter APK. Add the following metadata to the **registered activity**
-in the extension, using the adapter's application ID.
-
-```xml
-<meta-data android:name="com.xlythe.engine.extension.LEGACY_ADAPTER"
-    android:value="com.example.calendar.adapter" />
-```
-
-In the adapter's **application** element, name the owning extension.
-
-```xml
-<meta-data android:name="com.xlythe.engine.extension.ADAPTER_OWNER"
-    android:value="com.example.calendar.extension" />
-```
-
-Sign both packages with the same key. Hosts using certificate pins must register
-each package separately. Discovery returns the owning extension. Its existing
-entry-class metadata (or its default `.Extension` class name) also names the
-class in the adapter. The constructor receives the adapter context so its classes
-and resources come from the same APK. Keep its public interface compatible with the host. A host-bundled mapping takes
-precedence over a separate adapter on legacy installs. The engine completes
-selection before invoking a constructor. If the required adapter is missing or
-untrusted, loading fails with `InvalidExtensionException`.
-
-See the [compatibility tests and installation history](compatibility/README.md).
+Some historical paid installs keep the executable APK private to the extension's
+UID. If the publisher includes a host-side implementation, the engine can select
+it automatically for the verified owner. The ordinary install and split paths
+require no adapter configuration. [Legacy adapter packaging and device tests](compatibility/README.md)

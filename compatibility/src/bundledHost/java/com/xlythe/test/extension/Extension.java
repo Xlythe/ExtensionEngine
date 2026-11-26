@@ -1,4 +1,4 @@
-package com.xlythe.test.host;
+package com.xlythe.test.extension;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -6,10 +6,10 @@ import android.widget.TextView;
 
 import com.xlythe.test.R;
 
-public class BundledExtension {
+public class Extension implements com.xlythe.engine.extension.Extension.LegacyAdapter {
     private final Context host;
 
-    public BundledExtension(Context host) {
+    public Extension(Context host) {
         this.host = host;
     }
 

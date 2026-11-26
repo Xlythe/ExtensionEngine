@@ -18,3 +18,5 @@ includeBuild('..') {
         substitute module('com.xlythe:extension-engine') using project(':extension-engine')
     }
 }
+
+include ':featureOwner', ':feature'

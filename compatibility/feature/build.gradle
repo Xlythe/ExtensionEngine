@@ -1,0 +1,15 @@
+plugins { id 'com.android.dynamic-feature' }
+
+android {
+    namespace 'com.xlythe.test'
+    compileSdk 37
+    ndkVersion '27.2.12479018'
+    externalNativeBuild { ndkBuild { path file('src/main/jni/Android.mk') } }
+    defaultConfig { minSdk 26 }
+    sourceSets {
+        main.java.srcDir '../src/extension/java'
+        main.res.srcDir '../src/extension/res'
+    }
+}
+
+dependencies { implementation project(':featureOwner') }
