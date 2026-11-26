@@ -12,15 +12,19 @@ dependencies {
 
 Loading Extensions
 ----------------
-As of Android 11 (API 30), the main app must add this to their AndroidManifest.
+For hosts targeting Android 11 (API 30) or later, this checkout’s library manifest contributes
+a package visibility query for `${applicationId}.EXTENSION`. Gradle substitutes
+the consuming app's final application ID, including any build variant suffix.
+This covers every extension advertising the default action. If you pass an
+alternate action namespace to `getApps`, declare that action in the host manifest.
+Hosts using release 0.0.5 must also declare their default action themselves.
+
 ```xml
-<manifest package="com.example.myapp">
-    <queries>
-        <intent>
-            <action android:name="com.example.myapp.EXTENSION" /> <!-- Change com.example.myapp to your main app's package name -->
-        </intent>
-    </queries>
-</manifest>
+<queries>
+    <intent>
+        <action android:name="com.example.alternate.EXTENSION" />
+    </intent>
+</queries>
 ```
 
 Define your extension
@@ -68,7 +72,8 @@ Security.addAllowedSigningCertificate("com.example.calendar.extension", CALENDAR
 Use the fingerprint of the certificate on the distributed APK. Play App Signing
 shows this under **App signing key certificate**. Pins accept plain hex or
 colon-separated hex pairs, apply to single-signer APKs, and last for the current
-process. Register both fingerprints during a planned key rotation. The optional
+process. Android still applies the manifest visibility rules above when a pin is registered.
+Register both fingerprints during a planned key rotation. The optional
 raw certificate arguments to `getApps` further filter the trusted results.
 
 This library compiles against Android API 37 and targets API 37 for its test APK

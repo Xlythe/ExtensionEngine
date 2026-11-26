@@ -25,12 +25,20 @@ public class Extension extends ContextWrapper {
     public static final String KEY_EXTENSION = "extension";
     public static final String CLASS_NAME = ".Extension";
 
-    /** Lists trusted extensions. Optional raw signing certificates further restrict the results. */
+    /**
+     * Returns a list of installed apps that are registered as extensions. Optionally you can pass
+     * in a signatures field that lists the signatures the extensions are required to be signed
+     * with. Passing in no signatures means all trusted extensions will be listed.
+     */
     public static List<App> getApps(Context context, byte[]... signatures) {
         return getApps(context, context.getPackageName(), signatures);
     }
 
-    /** Queries an alternate action namespace using the same host trust policy. */
+    /**
+     * Returns a list of installed apps that are registered as extensions. Optionally you can pass
+     * in a signatures field that lists the signatures the extensions are required to be signed
+     * with. Passing in no signatures means all trusted extensions will be listed.
+     */
     public static List<App> getApps(Context context, String packageName, byte[]... signatures) {
         List<App> apps = new LinkedList<>();
         PackageManager manager = context.getPackageManager();

@@ -31,7 +31,18 @@ import androidx.annotation.Nullable;
 import static com.xlythe.engine.extension.Extension.DEBUG;
 import static com.xlythe.engine.extension.Extension.TAG;
 
-/** Serves installed APKs to verified hosts using the legacy DEX provider protocol. */
+/**
+ * A file provider allows other apps installed on the user's device to request us for files. This one
+ * specifically provides the dex files needed to load our class into memory. Extensions should add
+ * the following lines of code to their AndroidManifest.xml to enable the provider for older hosts.
+ *
+ * <pre>{@code
+ * <provider
+ *   android:authorities="your.package.name.DexFileProvider"
+ *   android:name="com.xlythe.engine.extension.v2.DexFileProvider"
+ *   android:exported="true" />
+ * }</pre>
+ */
 public class DexFileProvider extends ContentProvider implements ContentProvider.PipeDataWriter<InputStream> {
     public static final String PATH_COUNT = "count";
     public static final String PATH_DEX = "dex";
