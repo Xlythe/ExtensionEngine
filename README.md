@@ -107,8 +107,14 @@ and it's up to the extension to fully implement those methods.
 Legacy paid extensions
 ----------------
 Some older installs put executable code in a private APK and expose only a
-resource archive to other UIDs. The engine uses the normal installed-package
-loader whenever it can resolve the registered entry class. The minimum supported API is 14.
+resource archive to other UIDs. The minimum supported API is 14.
+
+On APIs 14–20 the engine checks a verified, readable APK for secondary DEX
+files before loading its entry class. If present, the engine loads the primary
+and secondary DEX together so extension methods and custom views can reference
+classes in any of them. The host uses its private cache for the secondary files.
+The public V2 context uses the same selected package for classes, resources,
+and layout inflation as `Extension.getExtension()`.
 
 For API 14 hosts using Gradle, select an AppCompat release that still supports
 API 14, such as 1.6.1, within the library’s allowed range.

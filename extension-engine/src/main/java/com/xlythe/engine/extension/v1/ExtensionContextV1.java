@@ -45,11 +45,11 @@ public class ExtensionContextV1 extends ContextWrapper {
                     className = bundled;
                 } else if (adapter != null && (legacy || unavailable instanceof ClassNotFoundException)) {
                     Security.enforceLegacyAdapter(context, packageName, adapter);
-                    selected = context.createPackageContext(adapter, CODE_FLAGS);
+                    selected = loadInstalled(context, adapter, className, true);
                 } else {
                     throw new IllegalArgumentException("Could not load " + packageName, unavailable);
                 }
-            } catch (PackageManager.NameNotFoundException missing) {
+            } catch (PackageManager.NameNotFoundException | ClassNotFoundException missing) {
                 throw new IllegalArgumentException("Could not load adapter for " + packageName, missing);
             }
         }
@@ -65,12 +65,18 @@ public class ExtensionContextV1 extends ContextWrapper {
     private static Context loadInstalled(Context host, String packageName, String className, boolean checkEntry)
             throws PackageManager.NameNotFoundException, ClassNotFoundException {
         Context extension = host.createPackageContext(packageName, CODE_FLAGS);
+        if (Build.VERSION.SDK_INT < 21) {
+            // A primary-DEX entry may first reference a secondary class long after construction.
+            extension = PublicApkContext.load(host, extension);
+        }
         if (checkEntry) {
             try {
                 extension.getClassLoader().loadClass(className);
             } catch (ClassNotFoundException missing) {
                 if (Build.VERSION.SDK_INT >= 21 && Build.VERSION.SDK_INT < 26) {
-                    return PublicApkContext.load(host, extension, className);
+                    Context retry = PublicApkContext.load(host, extension);
+                    retry.getClassLoader().loadClass(className);
+                    return retry;
                 }
                 throw missing;
             }

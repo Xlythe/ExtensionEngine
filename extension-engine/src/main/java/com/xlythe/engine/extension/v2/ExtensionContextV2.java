@@ -2,45 +2,15 @@ package com.xlythe.engine.extension.v2;
 
 import android.content.Context;
 import android.content.ContextWrapper;
-import android.content.pm.PackageManager;
-import android.content.res.Resources;
 
 import com.xlythe.engine.extension.v1.ExtensionContextV1;
 
 import java.io.IOException;
 
-/**
- * TODO: This doesn't properly load resources from the other class.
- */
+/** Compatibility entry point using the verified extension context for code, resources and services. */
 public class ExtensionContextV2 extends ContextWrapper {
-    private final String mPackageName;
-    private final ClassLoader mClassLoader;
-
     public ExtensionContextV2(Context context, String packageName) throws InvalidCursorException, IOException {
-        super(context);
-        ExtensionContextV1 codeContext = new ExtensionContextV1(context, packageName);
-        mPackageName = codeContext.getPackageName();
-        mClassLoader = codeContext.getClassLoader();
-    }
-
-    @Override
-    public Resources getResources() {
-        try {
-            return getPackageManager().getResourcesForApplication(mPackageName);
-        } catch (PackageManager.NameNotFoundException e) {
-            e.printStackTrace();
-            return super.getResources();
-        }
-    }
-
-    @Override
-    public String getPackageName() {
-        return mPackageName;
-    }
-
-    @Override
-    public ClassLoader getClassLoader() {
-        return mClassLoader;
+        super(new ExtensionContextV1(context, packageName));
     }
 
     public static class InvalidCursorException extends Exception {}

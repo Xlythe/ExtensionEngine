@@ -2,7 +2,8 @@
 
 The test host and extension have distinct UIDs. The host discovers the extension
 through the library manifest query, calls its Java entry point, and checks the
-text of a custom view inflated from the extension's layout. The host consumes
+text of a custom view inflated from the extension's layout. It also constructs
+`ExtensionContextV2` directly and inflates the layout through that context. The host consumes
 the library through a Gradle composite build and selects AppCompat 1.6.1 to
 support API 14. The test reports the selected class loader, code package,
 `sourceDir`, and `publicSourceDir`.
@@ -113,3 +114,40 @@ adb install-multiple -r "$out"/selected/*.apk
 adb shell pm path com.xlythe.test.extension
 adb shell am instrument -w -e language fr com.xlythe.test.host/.LoadTest
 ```
+
+## Reproduce the 2017 multidex and resource failures
+
+The fixture generator uses D8 to control class placement and checks each DEX's
+class definitions with dexdump. The two bundles exercise distinct lookup paths.
+
+| Bundle | Entry class | Custom view |
+| --- | --- | --- |
+| `secondary-view.aab` | `classes.dex` | `classes2.dex` |
+| `secondary-entry.aab` | `classes2.dex` | `classes3.dex` |
+
+Both passed through the default loader and explicit V2 constructor on APIs
+14, 17, 19, 21–25, and 37. API 37 used a separately installed French language
+split. The forward-locked three-DEX fixture followed the same adapter and
+public-APK paths shown in the installation matrix above. On APIs 17 and 24
+both entry points also loaded a three-DEX companion for a protected owner.
+On API 19 both rejected an ordinary three-DEX owner signed with an unapproved key.
+
+Build the fixture as above, then generate both bundles in a fresh directory.
+These commands exercise an ordinary install on the selected disposable emulator.
+
+```sh
+out=$(mktemp -d)
+python3 compatibility/multidex_fixture.py "$ANDROID_HOME/build-tools/36.0.0" \
+    compatibility/build/outputs/bundle/extensionDebug/*.aab "$out"
+adb install -r compatibility/build/outputs/apk/host/debug/*.apk
+for placement in secondary-view secondary-entry; do
+    bundletool build-apks --mode=universal --bundle="$out/$placement.aab" \
+        --output="$out/$placement.apks" --ks="$HOME/.android/debug.keystore" \
+        --ks-key-alias=androiddebugkey --ks-pass=pass:android --key-pass=pass:android
+    unzip -p "$out/$placement.apks" universal.apk > "$out/$placement.apk"
+    adb install -r "$out/$placement.apk"
+    adb shell am instrument -w com.xlythe.test.host/.LoadTest
+done
+```
+
+For API 37 use each generated bundle in the French split procedure above.

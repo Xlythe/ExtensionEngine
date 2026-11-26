@@ -8,9 +8,12 @@ import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.widget.TextView;
 
 import com.xlythe.engine.extension.App;
 import com.xlythe.engine.extension.Extension;
+import com.xlythe.engine.extension.v2.ExtensionContextV2;
 
 import java.util.Locale;
 
@@ -67,6 +70,13 @@ public class LoadTest extends Instrumentation {
                     if (!expectedText.equals(adapter.readLabel())) {
                         throw new AssertionError("Extension layout text did not match");
                     }
+                    Context v2 = new ExtensionContextV2(host, EXTENSION);
+                    String layoutName = expectedPackage.equals(host.getPackageName()) ? "bundled_label" : "label";
+                    int id = v2.getResources().getIdentifier(layoutName, "layout", expectedPackage);
+                    TextView label = (TextView) LayoutInflater.from(v2).inflate(id, null);
+                    if (v2.getClassLoader() != loader || !expectedText.contentEquals(label.getText())) {
+                        throw new AssertionError("V2 did not inflate the selected package's layout");
+                    }
                     report.putString("result", "PASS");
                     finish(Activity.RESULT_OK, report);
                     return;
@@ -77,6 +87,12 @@ public class LoadTest extends Instrumentation {
                 Extension.getExtension(host, EXTENSION);
                 throw new AssertionError("Loaded an adapter for an untrusted owner");
             } catch (Extension.InvalidExtensionException expected) {
+                // Check the direct V2 constructor independently of discovery and the default loader.
+            }
+            try {
+                new ExtensionContextV2(host, EXTENSION);
+                throw new AssertionError("V2 accepted an untrusted owner");
+            } catch (SecurityException expected) {
                 report.putString("result", "PASS");
                 finish(Activity.RESULT_OK, report);
             }
