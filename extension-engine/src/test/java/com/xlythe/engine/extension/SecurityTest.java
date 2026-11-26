@@ -270,7 +270,7 @@ public class SecurityTest {
     @Test @Config(sdk = 28)
     public void baseRegistrationSelectsOnlyTheSplitThatCanLoadItsEntry() throws Exception {
         PackageInfo owner = install(PEER, HOST_CERT);
-        owner.splitNames = new String[]{"config.en", "feature"};
+        owner.applicationInfo.splitNames = new String[]{"config.en", "feature"};
         owner.applicationInfo.splitSourceDirs = new String[]{"language.apk", "feature.apk"};
         shadowOf(host.getPackageManager()).installPackage(owner);
         ResolveInfo registration = resolve(owner);
@@ -292,7 +292,7 @@ public class SecurityTest {
         };
         assertEquals(feature.getClassLoader(), new ExtensionContextV2(process, PEER).getClassLoader());
         assertEquals("default", Extension.getExtension(process, PEER).invoke("source"));
-        owner.splitNames = new String[]{"config.en"};
+        owner.applicationInfo.splitNames = new String[]{"config.en"};
         shadowOf(host.getPackageManager()).installPackage(owner);
         assertThrows(Extension.InvalidExtensionException.class, () -> Extension.getExtension(process, PEER));
     }

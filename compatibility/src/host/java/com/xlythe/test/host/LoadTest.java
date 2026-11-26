@@ -95,15 +95,10 @@ public class LoadTest extends Instrumentation {
                     }
                     if ("true".equals(options.getString("verifyFeatureConfig"))) {
                         Class<?> probe = loader.loadClass("com.xlythe.test.feature.NativeProbe");
-                        try {
-                            if (!Integer.valueOf(37).equals(probe.getMethod("read").invoke(null))) {
-                                throw new AssertionError("Feature JNI call failed");
-                            }
-                            report.putString("native", "PASS");
-                        } catch (UnsatisfiedLinkError unavailable) {
-                            if (!"false".equals(options.getString("requireNative"))) throw unavailable;
-                            report.putString("native", unavailable.getMessage());
+                        if (!Integer.valueOf(37).equals(probe.getMethod("read").invoke(null))) {
+                            throw new AssertionError("Feature JNI call failed");
                         }
+                        report.putString("native", "PASS");
                         int drawable = v2.getResources().getIdentifier("density_probe", "drawable", resourcePackage);
                         android.graphics.drawable.ColorDrawable color =
                                 (android.graphics.drawable.ColorDrawable) v2.getResources().getDrawable(drawable);

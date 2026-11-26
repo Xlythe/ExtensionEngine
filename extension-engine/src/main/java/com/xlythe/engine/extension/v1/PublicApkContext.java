@@ -1,13 +1,11 @@
 package com.xlythe.engine.extension.v1;
 
 import android.content.Context;
-import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.text.TextUtils;
-import android.view.LayoutInflater;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,15 +15,9 @@ import java.util.WeakHashMap;
 import dalvik.system.DexClassLoader;
 
 /** Loads a verified public APK with a host-private DEX cache on legacy runtimes. */
-final class PublicApkContext extends ContextWrapper {
+final class PublicApkContext {
     private static final WeakHashMap<ClassLoader, WeakReference<Loader>> loaders = new WeakHashMap<>();
-    private final ClassLoader loader;
-    private LayoutInflater inflater;
-
-    private PublicApkContext(Context extension, ClassLoader loader) {
-        super(extension);
-        this.loader = loader;
-    }
+    private PublicApkContext() {}
 
     static synchronized Context load(Context host, Context extension)
             throws ClassNotFoundException, PackageManager.NameNotFoundException {
@@ -63,7 +55,7 @@ final class PublicApkContext extends ContextWrapper {
             result = new Loader(paths, cache, info, parent, installed.lastUpdateTime);
             loaders.put(platform, new WeakReference<>(result));
         }
-        return new PublicApkContext(extension, result);
+        return new LoaderContext(extension, result);
     }
 
     private static class Loader extends DexClassLoader {
@@ -75,19 +67,5 @@ final class PublicApkContext extends ContextWrapper {
             this.apk = info.sourceDir;
             this.updated = updated;
         }
-    }
-
-    @Override
-    public ClassLoader getClassLoader() {
-        return loader;
-    }
-
-    @Override
-    public Object getSystemService(String name) {
-        if (LAYOUT_INFLATER_SERVICE.equals(name)) {
-            if (inflater == null) inflater = LayoutInflater.from(getBaseContext()).cloneInContext(this);
-            return inflater;
-        }
-        return super.getSystemService(name);
     }
 }

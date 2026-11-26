@@ -67,11 +67,8 @@ public class ExtensionContextV1 extends ContextWrapper {
                                          String splitName)
             throws PackageManager.NameNotFoundException, ClassNotFoundException {
         Context extension = host.createPackageContext(packageName, CODE_FLAGS);
-        if (Build.VERSION.SDK_INT >= 26 && splitName != null) {
-            extension = extension.createContextForSplit(splitName);
-        }
-        if (Build.VERSION.SDK_INT >= 26 && extension.getApplicationInfo().splitSourceDirs != null) {
-            return findSplitEntry(host, extension, packageName, className);
+        if (Build.VERSION.SDK_INT >= 26 && (splitName != null || extension.getApplicationInfo().splitSourceDirs != null)) {
+            return findSplitEntry(extension, splitName, className);
         }
         if (Build.VERSION.SDK_INT < 21) {
             // A primary-DEX entry may first reference a secondary class long after construction.
@@ -93,27 +90,28 @@ public class ExtensionContextV1 extends ContextWrapper {
     }
 
     @androidx.annotation.RequiresApi(26)
-    private static Context findSplitEntry(Context host, Context extension, String packageName, String className)
+    private static Context findSplitEntry(Context base, String splitName, String className)
             throws ClassNotFoundException, PackageManager.NameNotFoundException {
-        // Bundle delivery can advertise the feature activity in the base manifest.
+        Context selected = splitName == null ? base : base.createContextForSplit(splitName);
         try {
-            extension.getClassLoader().loadClass(className);
-            return extension;
+            selected.getClassLoader().loadClass(className);
         } catch (ClassNotFoundException missing) {
-            String[] splits = host.getPackageManager().getPackageInfo(packageName, 0).splitNames;
+            // Bundle delivery can advertise the feature activity in the base manifest.
+            String[] splits = base.getApplicationInfo().splitNames;
             if (splits == null) throw missing;
             for (String split : splits) {
-                Context candidate = extension.createContextForSplit(split);
-                if (candidate.getClassLoader() == extension.getClassLoader()) continue;
+                Context candidate = base.createContextForSplit(split);
+                if (candidate.getClassLoader() == selected.getClassLoader()) continue;
                 try {
                     candidate.getClassLoader().loadClass(className);
-                    return candidate;
+                    return IsolatedSplitLoader.forContext(base, candidate, split);
                 } catch (ClassNotFoundException absentFromSplit) {
                     // Only the context that can resolve the entry supplies its resources.
                 }
             }
             throw missing;
         }
+        return IsolatedSplitLoader.forContext(base, selected, splitName);
     }
 
     private static String getBundledAdapter(Context host, String owner) throws PackageManager.NameNotFoundException {

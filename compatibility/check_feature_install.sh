@@ -10,7 +10,7 @@ feature=("$splits"/feature-master*.apk)
 french=("$splits"/feature-fr*.apk)
 abi=("$splits"/feature-x86_64*.apk)
 density=("$splits"/feature-mdpi*.apk)
-feature_resource=(-e resourcePackage "$pkg.feature" -e verifyFeatureConfig true -e requireNative "${2:-true}")
+feature_resource=(-e resourcePackage "$pkg.feature" -e verifyFeatureConfig true)
 
 probe() {
     local result

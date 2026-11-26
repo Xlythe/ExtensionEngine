@@ -226,11 +226,19 @@ On the x86_64 mdpi emulator we exercised these installs:
 | Complete split set installed with the base supplied last | Code, mdpi resources and the French translation loaded. |
 | French split signed by a different key | Package Manager rejected the session. The prior signed installation passed the same probe. |
 
-JNI via `System.loadLibrary` passed with normal split loading. With
-`android:isolatedSplits="true"`, the same call raised `UnsatisfiedLinkError`
-even with the matching ABI split installed. The Java entry and split-resource
-checks still passed. Chromium documents the missing native search path for an
-isolated split class loader. [Isolated split loader behavior](https://chromium.googlesource.com/chromium/src/+/HEAD/docs/android_isolated_splits.md)
+On API 37 the platform's isolated feature loader had an empty native search
+path. With the updated host, the same extension's `System.loadLibrary` call
+succeeded. For a verified isolated feature, the engine gives its defining
+class loader the native paths for the host process ABI and keeps the
+platform parent and split resources. Android loads stored libraries directly
+from the installed APK and compressed libraries from the package's extracted
+native directory.
+
+The JNI probe calls a second shared library linked via `DT_NEEDED` and
+checks its return value. It passed in all four combinations of isolated or
+shared feature loading and stored or compressed native libraries. A copy of
+the isolated feature signed with a different key was rejected by both public
+loaders. After the host registered that package's certificate, JNI passed.
 
 To reproduce, build the feature bundle using NDK 27.2.12479018. Use the
 device spec with French enabled from the split procedure above. Run each
@@ -243,11 +251,12 @@ for isolated in true false; do
     gradle -p compatibility -PisolatedSplits="$isolated" :featureOwner:bundleDebug
     bundletool build-apks --bundle=compatibility/featureOwner/build/outputs/bundle/debug/featureOwner-debug.aab --output="$out/set.apks" --ks="$HOME/.android/debug.keystore" --ks-key-alias=androiddebugkey --ks-pass=pass:android --key-pass=pass:android
     bundletool extract-apks --apks="$out/set.apks" --device-spec="$french_device_spec" --modules=base,feature --output-dir="$out/selected"
-    require_native=true
-    if [ "$isolated" = true ]; then require_native=false; fi
-    compatibility/check_feature_install.sh "$out/selected" "$require_native"
+    compatibility/check_feature_install.sh "$out/selected"
 done
 ```
+
+To exercise extracted JNI libraries, repeat both builds with
+`-PcompressJni=true` and run the same install script.
 
 For unit-test coverage run
 `gradle -Pcoverage :extension-engine:createDebugUnitTestCoverageReport`.

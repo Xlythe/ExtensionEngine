@@ -6,6 +6,7 @@ android {
     ndkVersion '27.2.12479018'
     externalNativeBuild { ndkBuild { path file('src/main/jni/Android.mk') } }
     defaultConfig { minSdk 26 }
+    packaging.jniLibs.useLegacyPackaging = providers.gradleProperty("compressJni").getOrElse("false").toBoolean()
     sourceSets {
         main.java.srcDir '../src/extension/java'
         main.res.srcDir '../src/extension/res'
