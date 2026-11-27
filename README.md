@@ -6,7 +6,7 @@ Where to Download
 -----------------
 ```groovy
 dependencies {
-  compile 'com.xlythe:extension-engine:0.0.5'
+  implementation 'com.xlythe:extension-engine:1.0.0'
 }
 ```
 
@@ -14,7 +14,7 @@ Loading Extensions
 ----------------
 The default discovery action is the host's application ID followed by `.EXTENSION`.
 For example, the host `com.xlythe.saolauncher` queries for
-`com.xlythe.saolauncher.EXTENSION`. In this checkout the library adds that query
+`com.xlythe.saolauncher.EXTENSION`. Version 1.0.0 adds that query
 to the host's manifest automatically, using the host variant's final application ID.
 Only hosts using 0.0.5 or a custom discovery action need to add a matching
 `<queries><intent>` entry themselves when targeting Android 11 or later.
@@ -44,8 +44,6 @@ for (App app : Extension.getApps(this)) {
 
 
 ### Trusting an extension
-
-The following trust policy and registration API are available in this checkout.
 
 The engine loads extension code into the host process with the host's privileges.
 Discovery and loading both check the installed package and its current APK signing
@@ -119,7 +117,7 @@ require no adapter configuration. [Legacy adapter packaging and device tests](co
 
 A method you call through `Extension.invoke()` runs **inside the host process**, even though its bytecode came from the extension APK. Android checks the host's permissions there. To use a permission held by the extension, have the host explicitly launch an Activity in the extension or open a session with its service. Code inside that component calls the regular Android API with the extension's identity.
 
-The operations API in this checkout supports Android API 18 and later. Define one operation per feature you want to offer. An operation can use as many Android methods as it needs. If the host also has a local implementation, it can check its own permission with `ContextCompat.checkSelfPermission` and choose which path to call. ExtensionEngine only sends the operations you explicitly start.
+The operations API supports Android API 18 and later. Define one operation per feature you want to offer. An operation can use as many Android methods as it needs. If the host also has a local implementation, it can check its own permission with `ContextCompat.checkSelfPermission` and choose which path to call. ExtensionEngine only sends the operations you explicitly start.
 
 #### Vibrate once
 
