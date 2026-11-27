@@ -151,3 +151,9 @@ session = OperationSession.open(this, EXTENSION_PACKAGE, "camera.preview.v1",
 ```
 
 Call `session.close()` when the host pauses or loses its surface. In the extension, implement `OperationService.onOpenSession(operation, inputs, session)` and `onCloseSession(session)`. Open Camera2 against the supplied surface and close the camera when the session ends. Recheck the extension's current grant before starting work. The library handles binding, foreground importance, single-use approval, and peer death. Advertise the service with the host's `.EXTENSION_SERVICE` action. The matching registration activity handles operation approval by default. [Extension approval UI](compatibility/src/previewExtension/java/com/xlythe/test/preview/PreviewApproval.java) · [Camera service](compatibility/src/previewExtension/java/com/xlythe/test/preview/PreviewService.java) · [Example manifest](compatibility/src/previewExtension/AndroidManifest.xml)
+
+### APK updates
+
+A loaded extension represents one installation of its owner and adapter. When either package changes, discard its views and objects and call `Extension.getExtension(...)` again. Use `isCurrent()` to check a retained handle. Calling `invoke` on a superseded handle throws `IllegalStateException`. After Android restarts the host, initialize the extension as on a cold launch.
+
+Replacing either APK ends a live camera session. The host should release its preview, bind again and ask the user to start a new session. Pending approvals expire when the issuing process dies or the requesting host APK changes.

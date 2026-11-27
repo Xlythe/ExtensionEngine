@@ -127,7 +127,16 @@ public class Extension extends ContextWrapper {
         this(extension, extension.mObj);
     }
 
+    /** False when this instance belongs to a superseded installation. Rebuild any views it returned
+     * and acquire a new instance with getExtension before calling the updated implementation. */
+    public final boolean isCurrent() {
+        Context base = getBaseContext();
+        if (base instanceof Extension) return ((Extension) base).isCurrent();
+        return !(base instanceof ExtensionContextV1) || ((ExtensionContextV1) base).isCurrent();
+    }
+
     protected Object invoke(String methodName, ReflectionPair... parameters) {
+        if (!isCurrent()) throw new IllegalStateException("Extension was replaced or removed; reload it");
         Class[] classes = new Class[parameters.length];
         Object[] values = new Object[parameters.length];
         for (int i = 0; i < parameters.length; i++) {

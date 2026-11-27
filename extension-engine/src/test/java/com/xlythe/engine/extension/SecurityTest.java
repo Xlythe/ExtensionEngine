@@ -302,7 +302,13 @@ public class SecurityTest {
         local.applicationInfo.metaData = new Bundle();
         local.applicationInfo.metaData.putString(Extension.KEY_LEGACY_ADAPTER + "." + PEER, DefaultEntry.class.getName());
         shadowOf(host.getPackageManager()).installPackage(local);
-        assertEquals("default", Extension.getExtension(blocked, PEER).invoke("source"));
+        Extension handle = Extension.getExtension(blocked, PEER);
+        assertTrue(handle.isCurrent());
+        assertEquals("default", handle.invoke("source"));
+        owner.lastUpdateTime++;
+        shadowOf(host.getPackageManager()).installPackage(owner);
+        assertFalse(handle.isCurrent());
+        assertThrows(IllegalStateException.class, () -> handle.invoke("source"));
         local.applicationInfo.metaData.putString(PEER + ".LEGACY_ADAPTER", ContextEntry.class.getName());
         shadowOf(host.getPackageManager()).installPackage(local);
         assertEquals(host.getPackageName(), Extension.getExtension(blocked, PEER).invoke("source"));

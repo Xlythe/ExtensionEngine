@@ -9,6 +9,7 @@ import android.os.IBinder;
 import android.os.SystemClock;
 
 import androidx.annotation.RequiresApi;
+import com.xlythe.engine.extension.PackageRevision;
 
 /**
  * Approval for one operation by a specific host. The host transports the opaque Binder returned
@@ -20,11 +21,13 @@ final class OperationApproval extends Binder {
     private static final String EXTRA = "com.xlythe.engine.extension.APPROVAL_TOKEN";
     private final String host;
     private final String operation;
+    private final PackageRevision hostRevision;
     private final long issuedAt = SystemClock.elapsedRealtime();
     private boolean used;
 
-    private OperationApproval(String host, String operation) {
+    private OperationApproval(PackageRevision revision, String host, String operation) {
         this.host = host;
+        this.hostRevision = revision;
         this.operation = operation;
     }
 
@@ -40,9 +43,10 @@ final class OperationApproval extends Binder {
 
     /** Call only from the extension's approval UI after the user accepts this operation. */
     public static Intent approved(Activity activity, String expectedHost, String operation) {
+        PackageRevision revision = PackageRevision.capture(activity, expectedHost);
         verifyLaunch(activity, expectedHost);
         Bundle extras = new Bundle();
-        extras.putBinder(EXTRA, new OperationApproval(expectedHost, operation));
+        extras.putBinder(EXTRA, new OperationApproval(revision, expectedHost, operation));
         return new Intent().putExtras(extras);
     }
 
@@ -68,7 +72,8 @@ final class OperationApproval extends Binder {
         if (!(token instanceof OperationApproval)) throw new SecurityException("Missing local approval");
         OperationApproval approval = (OperationApproval) token;
         synchronized (approval) {
-            if (approval.used || !approval.host.equals(expectedHost) || !approval.operation.equals(operation)
+            if (!approval.hostRevision.isCurrent(extension) || approval.used || !approval.host.equals(expectedHost)
+                    || !approval.operation.equals(operation)
                     || SystemClock.elapsedRealtime() - approval.issuedAt >= 60_000) {
                 throw new SecurityException("Invalid or expired approval");
             }

@@ -74,6 +74,15 @@ public class OperationApprovalTest {
         assertThrows(SecurityException.class, () -> OperationApproval.consume(extension, HOST, "preview", pending));
     }
 
+    @Test public void reinstallWithSameSignerUidAndVersionRequiresNewApproval() throws Exception {
+        IBinder old = grant();
+        PackageInfo update = extension.getPackageManager().getPackageInfo(HOST, android.content.pm.PackageManager.GET_SIGNATURES);
+        update.lastUpdateTime++;
+        shadowOf(extension.getPackageManager()).installPackage(update);
+        assertThrows(SecurityException.class, () -> OperationApproval.consume(extension, HOST, "preview", old));
+        OperationApproval.consume(extension, HOST, "preview", grant());
+    }
+
     public static class RecordingService extends OperationService {
         int opened;
         int closed;

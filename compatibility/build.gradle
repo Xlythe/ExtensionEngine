@@ -3,12 +3,19 @@ plugins {
     id 'com.android.dynamic-feature' version '9.3.1' apply false
 }
 
+def fixtureRevision = providers.gradleProperty('fixtureRevision').orElse('1').get().toInteger()
+
 android {
+    buildFeatures {
+        buildConfig = true
+        resValues = true
+    }
     namespace 'com.xlythe.test'
     compileSdk 37
     defaultConfig {
         minSdk 14
-        versionCode 1
+        versionCode fixtureRevision
+        resValue 'string', 'fixture_revision', fixtureRevision.toString()
         targetSdk 37
     }
     flavorDimensions 'role'

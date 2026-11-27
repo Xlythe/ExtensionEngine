@@ -283,3 +283,21 @@ python3 compatibility/check_preview.py
 ```
 
 Pass `--expect-barcode 'ExtensionEngine test scan'` when the emulated camera points at a QR code with that text.
+
+## APK replacement
+
+Build two revisions and exercise both update directions on a disposable emulator. Each revision contains different extension bytecode and a different resource value. The camera probe requires an emulated camera.
+
+```sh
+out=$(mktemp -d)
+for revision in 1 2; do
+    mkdir "$out/$revision"
+    gradle -p compatibility -PfixtureRevision="$revision" assembleHostDebug assembleExtensionDebug assemblePreviewHostDebug assemblePreviewExtensionDebug
+    for role in host extension previewHost previewExtension; do
+        cp compatibility/build/outputs/apk/"$role"/debug/*.apk "$out/$revision/$role.apk"
+    done
+done
+python3 compatibility/check_updates.py "$out/1" "$out/2"
+```
+
+Use `--embedded-only` for an emulator without a camera.

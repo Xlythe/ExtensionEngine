@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application />
+    <application>
+        <activity android:name="com.xlythe.test.host.UpdateProbe" android:exported="true"
+            android:launchMode="singleTop" />
+    </application>
     <instrumentation android:name="com.xlythe.test.host.LoadTest"
         android:targetPackage="com.xlythe.test.host" />
 </manifest>
