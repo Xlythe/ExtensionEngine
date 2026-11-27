@@ -10,6 +10,10 @@ The library supplies [endpoint verification and binding](../extension-engine/src
 
 Two runnable APKs exercise these APIs on API 21+. The [host](../compatibility/src/previewHost/java/com/xlythe/test/preview/PreviewActivity.java) offers a result-only scan and a live preview. For a live preview, the extension confirms that the named host may receive camera images, obtains its own camera grant, then returns an approval. The host passes it and a texture-backed surface through [typed AIDL](../compatibility/src/preview/aidl/com/xlythe/test/preview/IPreviewV1.aidl). The [service](../compatibility/src/previewExtension/java/com/xlythe/test/preview/PreviewService.java) opens Camera2. For a result-only scan, a [private scanner activity](../compatibility/src/previewExtension/java/com/xlythe/test/preview/ScannerActivity.java) runs the decoder in the extension process and returns the text. The fixture launches this scanner full screen. Cross-app activity embedding is a possible presentation for a future host.
 
+To wire up a provider, add `OPERATION_SERVICE` and `OPERATION_APPROVAL` metadata to the existing extension registration activity. Their values name components in the extension APK. Declare the supported host in the extension's package visibility queries. Configure reciprocal signer pins at startup for a separately signed pair. The [fixture manifest](../compatibility/src/previewExtension/AndroidManifest.xml) shows the full names and exported components. The library manifest adds no camera permission or exported operation component to consumers.
+
+The host starts `ExtensionOperations.approvalIntent(activity, extensionPackage)` for result when the user selects the operation. After approval, it binds with `ExtensionOperations.bind(...)` and passes `OperationApproval.token(result)` through the operation's AIDL method. The extension calls `OperationApproval.consume(...)` on the incoming Binder thread before scheduling work. The live-preview binding opts into while-in-use capabilities. An ordinary binding uses the three-argument overload.
+
 ## Who chooses where a call runs?
 
 The host invokes an explicit, typed feature such as `scanBarcode()`. An embedded extension view can ask the host to start that feature through the same interface. The host owns the routing policy and the UI for selecting a provider. Each operation declares its supported Android versions, local and remote implementations, required permissions, and whether execution needs a visible activity. The extension independently chooses which operations it offers to each host. The provider choice identifies the extension and the data the host will receive. Device or profile policy that disallows the requested operation ends the request.
@@ -40,7 +44,7 @@ A preview at an arbitrary position in the host's view hierarchy needs a differen
 
 For a host-owned surface, the extension's service must be eligible to open the camera while the host is visible. Process importance alone is insufficient. The host opts into Android's documented foreground capability binding only for this visible, authorized session, with the extension's own camera grant. A missing grant goes through the extension's permission activity first. On return, recheck visibility and eligibility before opening the camera. If Android disallows access, offer the visible extension scanner. [Foreground capability binding](https://developer.android.com/reference/android/content/Context#BIND_INCLUDE_CAPABILITIES)
 
-Before advertising inline streaming, test on API 37 with `CAMERA` absent from the host manifest. Verify moving preview frames in the host, the extension's UID in camera diagnostics, and the grant and denial paths. Destroy or replace the surface during rotation, background the host, revoke the grant and kill each peer independently. Teardown must release the camera and the old surface, and late callbacks must never restart a closed session.
+The device probe waits for five host texture updates and checks the extension in Android’s active camera client list. It verifies closure after rotation, backgrounding, permission revocation and the death of each peer.
 
 ## When the extension needs a permission
 
@@ -75,4 +79,8 @@ adb install -r compatibility/build/outputs/apk/previewExtension/debug/*.apk
 ANDROID_SERIAL=emulator-5554 python3 compatibility/check_preview.py
 ```
 
-On API 37, measure the extension service's process importance with the host foreground, background and unbound, separately from camera access while the extension activity is visible. Exercise rotation during the prompt, death of either process, an update between bind and reconnect, two simultaneous requests, and denial of a wrong-package caller even when it shares a trusted signing key. Use API 22 for install-time behavior and APIs 23–24 for the runtime permission transition. These are acceptance tests for the implementation.
+On APIs 22, 23 and 24, the host displayed live frames and the extension owned the camera. API 22 used the install-time camera grant. APIs 23 and 24 exercised Android’s permission denial and grant UI.
+
+On the API 37.0 x86_64 emulator, Android reported the extension UID as `BOUND_TOP` during the live preview and `CACHED_EMPTY` after the host left. Both the consent cancellation and OS denial paths left the camera closed. Rotation, revocation, backgrounding and stopping either app released the active camera. This emulator used an emulated back camera, the minigbm graphics allocator and virtio-gpu transport.
+
+The result-only flow was also exercised on API 36 with a QR image as the emulator's camera input. To assert the result in the same smoke test, pass `--expect-barcode 'ExtensionEngine test scan'` with a camera scene containing that value. The Android permission dialog belongs to the extension in both flows.

@@ -46,7 +46,7 @@ public abstract class OperationPermissionActivity extends Activity {
 
     private void authorize() {
         if (granted()) {
-            onAuthorized();
+            complete();
         } else if (Build.VERSION.SDK_INT >= 23) {
             requesting = true;
             requestPermissions(new String[]{permission()}, 1);
@@ -59,8 +59,17 @@ public abstract class OperationPermissionActivity extends Activity {
         super.onRequestPermissionsResult(code, permissions, results);
         if (code != 1) return;
         if (requesting && results.length == 1 && results[0] == PackageManager.PERMISSION_GRANTED && granted()) {
-            onAuthorized();
+            complete();
         } else {
+            finish();
+        }
+    }
+
+    private void complete() {
+        try {
+            OperationApproval.verifyLaunch(this, hostPackage());
+            onAuthorized();
+        } catch (SecurityException hostChanged) {
             finish();
         }
     }

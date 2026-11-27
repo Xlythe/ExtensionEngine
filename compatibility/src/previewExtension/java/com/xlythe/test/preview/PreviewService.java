@@ -5,8 +5,15 @@ import android.annotation.SuppressLint;
 import android.app.Service;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.hardware.camera2.*;
-import android.os.*;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.IBinder;
+import android.os.RemoteException;
 import android.view.Surface;
 
 import com.xlythe.engine.extension.operations.ExtensionOperations;

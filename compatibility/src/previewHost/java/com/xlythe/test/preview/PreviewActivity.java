@@ -1,11 +1,19 @@
 package com.xlythe.test.preview;
 
 import android.app.Activity;
-import android.content.*;
+import android.content.ComponentName;
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.graphics.SurfaceTexture;
-import android.os.*;
-import android.view.*;
-import android.widget.*;
+import android.os.Bundle;
+import android.os.IBinder;
+import android.os.RemoteException;
+import android.view.Surface;
+import android.view.TextureView;
+import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import com.xlythe.engine.extension.Security;
 import com.xlythe.engine.extension.operations.ExtensionOperations;
@@ -46,6 +54,7 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
             } catch (RuntimeException unavailable) { stop("Provider unavailable"); }
         });
         preview = new TextureView(this);
+        preview.setVisibility(View.INVISIBLE);
         preview.setSurfaceTextureListener(this);
         layout.addView(status);
         layout.addView(action);
@@ -70,7 +79,9 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
     @Override protected void onPause() { resumed = false; stop("Stopped"); super.onPause(); }
 
     private void connect() {
-        if (!resumed || approval == null || connection != null || !preview.isAvailable()) return;
+        if (!resumed || approval == null || connection != null) return;
+        preview.setVisibility(View.VISIBLE);
+        if (!preview.isAvailable()) return;
         Connection next = new Connection();
         connection = next;
         try {
@@ -90,6 +101,7 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
             catch (RemoteException | RuntimeException gone) { /* Session was already closed. */ }
             if (old.bound) unbindService(old);
         }
+        preview.setVisibility(View.INVISIBLE);
         action.setText("Share live preview");
         status.setText(reason);
     }
@@ -129,7 +141,10 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
 
     @Override public void onSurfaceTextureAvailable(SurfaceTexture texture, int w, int h) { connect(); }
     @Override public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int w, int h) {}
-    @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) { stop("Preview closed"); return true; }
+    @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
+        if (connection != null) stop("Preview closed");
+        return true;
+    }
     @Override public void onSurfaceTextureUpdated(SurfaceTexture texture) {
         if (connection != null && ++connection.frames == 5) status.setText("Live camera preview");
     }

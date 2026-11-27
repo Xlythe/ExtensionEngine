@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the two preview debug APKs on a disposable English-language emulator."""
+import argparse
 import os
 import re
 import subprocess
@@ -41,8 +42,15 @@ def wait_ui(label, tap=False):
 
 def camera_active():
     dump = shell("dumpsys", "media.camera")
-    clients = dump.split("Active Camera Clients:", 1)[1].split("Allowed user IDs", 1)[0]
-    return EXTENSION in clients
+    if "Active Camera Clients:" in dump:
+        clients = dump.split("Active Camera Clients:", 1)[1].split("Allowed", 1)[0]
+        return EXTENSION in clients
+    # Android 5.1 reports only the PID of the current client.
+    client = re.search(r"Client\[\d+\].*?PID: (\d+)", dump)
+    if client is None:
+        return False
+    return any(line.split()[1] == client.group(1) and line.split()[-1] == EXTENSION
+               for line in shell("ps").splitlines() if len(line.split()) > 2)
 
 
 def expect_closed():
@@ -52,6 +60,12 @@ def expect_closed():
             return
         time.sleep(0.15)
     raise AssertionError("Extension still owns the camera")
+
+
+def importance():
+    package = shell("pm", "list", "packages", "-U", EXTENSION)
+    uid = re.search(r"uid:(\d+)", package).group(1)
+    return shell("cmd", "activity", "get-uid-state", uid).strip()
 
 
 def launch():
@@ -69,33 +83,57 @@ def live():
     assert camera_active(), "Expected the extension to own an active camera"
 
 
-if __name__ == "__main__":
+def check_preview(sdk):
     # Reset only these two test APKs, so the OS permission prompt is exercised on every run.
     for package in (HOST, EXTENSION):
         assert "Success" in shell("pm", "clear", package)
     assert "android.permission.CAMERA" not in shell("dumpsys", "package", HOST)
     shell("input", "keyevent", "KEYCODE_WAKEUP")
-    shell("wm", "dismiss-keyguard")
+    if sdk >= 26:
+        shell("wm", "dismiss-keyguard")
+    else:
+        shell("input", "keyevent", "82")
     launch()
     wait_ui("Share live preview", tap=True)
     wait_ui("Cancel", tap=True)
     wait_ui("Sharing declined")
     expect_closed()
     consent()
-    wait_ui("permission_deny_button", tap=True)
-    wait_ui("Sharing declined")
-    expect_closed()
-    consent()
-    wait_ui("permission_allow_foreground_only_button", tap=True)
+    if sdk >= 23:
+        wait_ui("permission_deny_button", tap=True)
+        wait_ui("Sharing declined")
+        expect_closed()
+        consent()
+        allow_button = "permission_allow_foreground_only_button" if sdk >= 30 else "permission_allow_button"
+        wait_ui(allow_button, tap=True)
     live()
+    if sdk < 30:
+        wait_ui("Stop sharing", tap=True)
+        expect_closed()
+        print(f"PASS: API {sdk} consent, camera permission, host frames, camera owner and stop")
+        return
+    print("Extension UID state with a live foreground client:", importance())
     wait_ui("Stop sharing", tap=True)
     expect_closed()
     consent()
     live()
     shell("input", "keyevent", "KEYCODE_HOME")
     expect_closed()
+    print("Extension UID state after the host left:", importance())
     launch()
     consent()
+    live()
+    try:
+        shell("wm", "user-rotation", "lock", "1")
+        expect_closed()
+    finally:
+        shell("wm", "user-rotation", "free")
+    consent()
+    live()
+    shell("pm", "revoke", EXTENSION, "android.permission.CAMERA")
+    expect_closed()
+    consent()
+    wait_ui("permission_allow_foreground_only_button", tap=True)
     live()
     shell("am", "force-stop", EXTENSION)
     wait_ui("Provider disconnected")
@@ -104,4 +142,18 @@ if __name__ == "__main__":
     live()
     shell("am", "force-stop", HOST)
     expect_closed()
-    print("PASS: consent, OS deny/grant, host frames, camera owner, stop, background and both process deaths")
+    print("PASS: consent, OS deny/grant, host frames, camera owner, stop, background, rotation, revocation and both process deaths")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--expect-barcode", help="decoded text when the emulator camera points at a barcode")
+    options = parser.parse_args()
+    check_preview(int(shell("getprop", "ro.build.version.sdk")))
+    if options.expect_barcode:
+        launch()
+        wait_ui("Scan barcode in extension", tap=True)
+        wait_ui("OK", tap=True)
+        wait_ui(options.expect_barcode)
+        expect_closed()
+        print("PASS: barcode text returned to host")

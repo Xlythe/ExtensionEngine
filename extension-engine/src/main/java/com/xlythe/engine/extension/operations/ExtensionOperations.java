@@ -25,7 +25,15 @@ public final class ExtensionOperations {
         return endpoint(host, extension, APPROVAL);
     }
 
-    /** Call while the activity is visible. Unbind the successful connection when the operation ends. */
+    /** Bind with foreground process importance for the lifetime of a visible operation. */
+    public static boolean bind(Activity host, String extension, ServiceConnection connection) {
+        return bind(host, extension, connection, false);
+    }
+
+    /**
+     * Opt into Android's while-in-use capability propagation only for an operation that needs it.
+     * The extension must hold its own permissions. Unbind when the operation ends.
+     */
     public static boolean bind(Activity host, String extension, ServiceConnection connection,
                                boolean shareWhileInUseCapabilities) {
         int flags = Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT | Context.BIND_ADJUST_WITH_ACTIVITY;

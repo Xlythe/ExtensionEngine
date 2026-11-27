@@ -1,5 +1,8 @@
 package com.xlythe.engine.extension;
 
+import android.app.Activity;
+import android.content.ComponentName;
+import android.content.ServiceConnection;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.Resources;
@@ -10,6 +13,8 @@ import android.content.pm.ResolveInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import com.xlythe.engine.extension.v2.DexFileProvider;
+import com.xlythe.engine.extension.operations.ExtensionOperations;
+import org.robolectric.Robolectric;
 import org.robolectric.shadows.ShadowBinder;
 import java.io.FileNotFoundException;
 import java.util.Arrays;
@@ -150,6 +155,38 @@ public class SecurityTest {
         info.activityInfo.name = pkg.packageName + ".Registration";
         info.nonLocalizedLabel = pkg.packageName;
         return info;
+    }
+
+    public static class BindingActivity extends Activity {
+        Intent endpoint;
+        int flags;
+
+        @Override public boolean bindService(Intent intent, ServiceConnection connection, int flags) {
+            this.endpoint = intent;
+            this.flags = flags;
+            return true;
+        }
+    }
+
+    @Test @Config(sdk = {23, 30})
+    public void operationsBindOnlyRegisteredTrustedEndpointsAndShareCapabilitiesOnRequest() {
+        BindingActivity activity = Robolectric.buildActivity(BindingActivity.class).setup().get();
+        ResolveInfo registration = resolve(install(PEER, HOST_CERT));
+        assertThrows(IllegalArgumentException.class, () -> ExtensionOperations.approvalIntent(activity, PEER));
+        registration.activityInfo.metaData = new Bundle();
+        registration.activityInfo.metaData.putString(ExtensionOperations.SERVICE, ".Worker");
+        registration.activityInfo.metaData.putString(ExtensionOperations.APPROVAL, ".Consent");
+        Intent action = new Intent(host.getPackageName() + Extension.ACTION_EXTENSION).setPackage(PEER);
+        shadowOf(host.getPackageManager()).addResolveInfoForIntent(action, registration);
+        assertEquals(new ComponentName(PEER, PEER + ".Consent"), ExtensionOperations.approvalIntent(activity, PEER).getComponent());
+        int priority = Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT | Context.BIND_ADJUST_WITH_ACTIVITY;
+        assertTrue(ExtensionOperations.bind(activity, PEER, null));
+        assertEquals(new ComponentName(PEER, PEER + ".Worker"), activity.endpoint.getComponent());
+        assertEquals(priority, activity.flags);
+        assertTrue(ExtensionOperations.bind(activity, PEER, null, true));
+        assertEquals(Build.VERSION.SDK_INT >= 29 ? priority | Context.BIND_INCLUDE_CAPABILITIES : priority, activity.flags);
+        install(PEER, PARTNER_CERT);
+        assertThrows(SecurityException.class, () -> ExtensionOperations.bind(activity, PEER, null, true));
     }
 
     @Test public void discoveryFiltersTrustAndReturnsEachOwnerOnce() {
