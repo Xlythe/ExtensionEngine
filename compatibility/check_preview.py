@@ -98,12 +98,13 @@ def check_preview(sdk):
     wait_ui("Cancel", tap=True)
     wait_ui("Sharing declined")
     expect_closed()
+    if sdk >= 23:
+        wait_ui("Scan barcode in extension", tap=True)
+        wait_ui("permission_deny_button", tap=True)
+        wait_ui("Scan canceled")
+        expect_closed()
     consent()
     if sdk >= 23:
-        wait_ui("permission_deny_button", tap=True)
-        wait_ui("Sharing declined")
-        expect_closed()
-        consent()
         allow_button = "permission_allow_foreground_only_button" if sdk >= 30 else "permission_allow_button"
         wait_ui(allow_button, tap=True)
     live()
@@ -153,7 +154,6 @@ if __name__ == "__main__":
     if options.expect_barcode:
         launch()
         wait_ui("Scan barcode in extension", tap=True)
-        wait_ui("OK", tap=True)
         wait_ui(options.expect_barcode)
         expect_closed()
         print("PASS: barcode text returned to host")

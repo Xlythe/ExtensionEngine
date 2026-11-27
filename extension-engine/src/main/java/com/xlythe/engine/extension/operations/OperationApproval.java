@@ -10,7 +10,11 @@ import android.os.SystemClock;
 
 import androidx.annotation.RequiresApi;
 
-/** One-use user approval. The issuing activity and receiving service must run in the same process. */
+/**
+ * Approval for one operation by a specific host. The host transports the opaque Binder returned
+ * by {@link #token(Intent)} to the extension's typed service method. The issuer and service must
+ * run in the same extension process. Process death invalidates outstanding approvals.
+ */
 @RequiresApi(18)
 public final class OperationApproval extends Binder {
     private static final String EXTRA = "com.xlythe.engine.extension.APPROVAL_TOKEN";
@@ -47,7 +51,13 @@ public final class OperationApproval extends Binder {
         return extras == null ? null : extras.getBinder(EXTRA);
     }
 
-    /** Consume on the incoming Binder thread. Foreign and pre-restart tokens cannot be local instances. */
+    /**
+     * Verify the transaction caller and consume its approval before posting work to another thread.
+     * The token must have been issued in this process for the expected host and operation within
+     * the last 60 seconds. Successful consumption is atomic and a second use fails. The operation
+     * must still check its current Android permission and handle revocation.
+     * @throws SecurityException if caller verification or token validation fails
+     */
     public static void consume(Context extension, String expectedHost, String operation, IBinder token) {
         ExtensionOperations.enforceCaller(extension, expectedHost);
         if (!(token instanceof OperationApproval)) throw new SecurityException("Missing local approval");

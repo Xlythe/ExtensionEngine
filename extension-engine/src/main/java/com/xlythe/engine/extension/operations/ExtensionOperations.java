@@ -21,18 +21,28 @@ public final class ExtensionOperations {
 
     private ExtensionOperations() {}
 
+    /**
+     * Returns the explicit activity advertised by a registered, trusted extension for this host.
+     * Launch it for result so the extension can verify the calling package. Any operation-specific
+     * extras and the result payload are part of the contract between the two apps.
+     * @throws SecurityException if the installed extension fails the signing policy
+     * @throws IllegalArgumentException if it has no registered approval endpoint
+     */
     public static Intent approvalIntent(Activity host, String extension) {
         return endpoint(host, extension, APPROVAL);
     }
 
     /** Bind with foreground process importance for the lifetime of a visible operation. */
     public static boolean bind(Activity host, String extension, ServiceConnection connection) {
-        return bind(host, extension, connection, false);
+        return bind(host, extension, connection, /* shareWhileInUseCapabilities= */ false);
     }
 
     /**
      * Opt into Android's while-in-use capability propagation only for an operation that needs it.
-     * The extension must hold its own permissions. Unbind when the operation ends.
+     * The extension must hold its own permissions. Both overloads tie process importance to the
+     * host activity. Passing true additionally sets {@link Context#BIND_INCLUDE_CAPABILITIES}
+     * on API 29+. Use it only while the user is actively using the selected feature. Release the
+     * connection with the same activity's {@link Activity#unbindService(ServiceConnection)}.
      */
     public static boolean bind(Activity host, String extension, ServiceConnection connection,
                                boolean shareWhileInUseCapabilities) {

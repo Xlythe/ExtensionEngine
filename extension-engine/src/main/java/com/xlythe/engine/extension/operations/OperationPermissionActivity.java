@@ -1,21 +1,33 @@
 package com.xlythe.engine.extension.operations;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.RequiresApi;
 
-/** Extension-owned consent and runtime permission UI for a single operation. */
+/**
+ * Verifies an activity-for-result caller before an extension handles a permission-gated operation.
+ * Implement {@link #onRequestOperation()} to present the extension's own UI or continue a
+ * user-initiated action. This activity supplies no layout. Android owns the runtime permission
+ * dialog and applies the user's choice to the extension package.
+ *
+ * <p>Declare the permission in the extension manifest. Override {@link #onAuthorized()} to do
+ * work in the extension activity, or use its default result to authorize one Binder operation.
+ * Canceling the activity or denying the permission returns {@link #RESULT_CANCELED}.
+ */
 @RequiresApi(18)
 public abstract class OperationPermissionActivity extends Activity {
     protected abstract String hostPackage();
     protected abstract String operation();
     protected abstract String permission();
-    /** Describe exactly what the host will receive. */
-    protected abstract String disclosure();
+    /**
+     * Called after caller verification, including after recreation unless a system request is
+     * pending. Call {@link #requestOperationPermission()} when the user chooses the operation.
+     * For sensitive data sharing, explain what the host will receive before continuing.
+     */
+    protected abstract void onRequestOperation();
 
     private boolean requesting;
 
@@ -29,22 +41,20 @@ public abstract class OperationPermissionActivity extends Activity {
             return;
         }
         requesting = state != null && state.getBoolean("requesting");
-        if (!requesting) {
-            new AlertDialog.Builder(this)
-                    .setTitle(hostPackage())
-                    .setMessage(disclosure())
-                    .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
-                    .setOnCancelListener(dialog -> finish())
-                    .setPositiveButton(android.R.string.ok, (dialog, which) -> authorize())
-                    .show();
-        }
+        if (!requesting) onRequestOperation();
     }
 
     private boolean granted() {
         return getPackageManager().checkPermission(permission(), getPackageName()) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void authorize() {
+    /**
+     * Continue the selected operation. An existing grant proceeds immediately. A missing grant
+     * on API 23+ requests the declared permission through Android. On older releases a missing
+     * install-time grant cancels the operation. Duplicate calls during a system request are ignored.
+     */
+    protected final void requestOperationPermission() {
+        if (requesting || isFinishing()) return;
         if (granted()) {
             complete();
         } else if (Build.VERSION.SDK_INT >= 23) {
@@ -58,7 +68,9 @@ public abstract class OperationPermissionActivity extends Activity {
     @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(code, permissions, results);
         if (code != 1) return;
-        if (requesting && results.length == 1 && results[0] == PackageManager.PERMISSION_GRANTED && granted()) {
+        if (!requesting) return;
+        requesting = false;
+        if (results.length == 1 && results[0] == PackageManager.PERMISSION_GRANTED && granted()) {
             complete();
         } else {
             finish();

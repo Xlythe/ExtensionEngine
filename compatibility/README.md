@@ -270,3 +270,16 @@ of the loading path. Its public pipe callback remains for API compatibility.
 The report in `extension-engine/build/reports/coverage/test/debug/` measures
 JVM tests only. The installed-APK probes above exercise the platform class
 loaders and Package Manager on devices.
+
+## Camera operations
+
+With a disposable English-language emulator selected in `ANDROID_SERIAL`, build both debug APKs and run the camera smoke test. The test clears data for those two fixture packages.
+
+```sh
+gradle -p compatibility :assemblePreviewHostDebug :assemblePreviewExtensionDebug
+adb install -r compatibility/build/outputs/apk/previewHost/debug/*.apk
+adb install -r compatibility/build/outputs/apk/previewExtension/debug/*.apk
+python3 compatibility/check_preview.py
+```
+
+Pass `--expect-barcode 'ExtensionEngine test scan'` when the emulated camera points at a QR code with that text.

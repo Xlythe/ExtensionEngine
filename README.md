@@ -117,4 +117,58 @@ require no adapter configuration. [Legacy adapter packaging and device tests](co
 
 ### Extension-owned permissions
 
-Use an explicitly selected extension operation when Android requires the extension's own UID. The host binds to the verified service from its foreground activity. The extension handles user consent, checks its own permission, and executes the operation. The camera sample includes an inline live preview and a result-only barcode scanner. [Implementation and two-APK example](docs/extension-permissions.md)
+A barcode scanner can use its own camera permission and return a string to a host that never declares `CAMERA`. In the **host** (a `ComponentActivity` or `AppCompatActivity`), launch the trusted scanner when the user taps Scan. The two apps agree on the operation name and result extra.
+
+```java
+private final ActivityResultLauncher<Intent> scan = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(), result -> {
+            Intent data = result.getData();
+            if (result.getResultCode() == RESULT_OK && data != null) {
+                barcodeLabel.setText(data.getStringExtra("barcode"));
+            }
+        });
+
+void scanBarcode() {
+    Intent request = ExtensionOperations.approvalIntent(this, "com.example.scanner");
+    scan.launch(request.putExtra("operation", "scan"));
+}
+```
+
+In the **extension APK**, declare `android.permission.CAMERA` and advertise the approval activity on the existing registration activity with `<meta-data android:name="com.xlythe.engine.extension.OPERATION_APPROVAL" android:value=".ScanApproval" />`. Export the approval activity and make the expected host visible to the extension's package manager. Separately signed peers register each other's package and certificate before use. [Complete example manifest](compatibility/src/previewExtension/AndroidManifest.xml)
+
+```java
+public final class ScanApproval extends OperationPermissionActivity {
+    @Override protected String hostPackage() { return "com.example.host"; }
+    @Override protected String operation() { return "barcode.scan.v1"; }
+    @Override protected String permission() { return Manifest.permission.CAMERA; }
+
+    @Override protected void onRequestOperation() {
+        requestOperationPermission();  // The user selected Scan in the host.
+    }
+
+    @Override protected void onAuthorized() {
+        startActivity(new Intent(this, ScannerActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT));
+        finish();
+    }
+}
+```
+
+On API 23+ a missing grant triggers Android’s runtime permission request for the extension. Android decides whether to show a dialog. Denial returns a canceled result. An existing grant proceeds directly to `onAuthorized()`. The private scanner uses the camera in its own process and calls `setResult(RESULT_OK, new Intent().putExtra("barcode", text))` and `finish()`. An extension can also render its own explanation in `onRequestOperation()` and call `requestOperationPermission()` from a button. The library supplies no dialog or layout. [Runnable scanner](compatibility/src/previewExtension/java/com/xlythe/test/preview/ScannerActivity.java)
+
+**For a live preview inside the host**, the extension first asks whether the host may receive camera images. The default `onAuthorized()` returns a single-use approval to the host. Once the host activity is visible again, it binds to the registered service and passes the approval and its preview surface through typed AIDL.
+
+```java
+// Host, after RESULT_OK
+IBinder approval = OperationApproval.token(resultIntent);
+boolean bound = ExtensionOperations.bind(this, extensionPackage, connection,
+        /* shareWhileInUseCapabilities= */ true);
+// In connection.onServiceConnected(), with the host's surface and callback ready:
+IPreviewV1.Stub.asInterface(binder).start(approval, surface, events);
+
+// Extension, at the start of the incoming IPreviewV1.start() call
+OperationApproval.consume(this, HOST_PACKAGE, "camera.preview.v1", approval);
+// Open Camera2 here in the extension process and direct its output to the supplied surface.
+```
+
+Stop the session and unbind the successful connection when the host leaves the preview. The sample handles service death, permission loss and surface teardown. [Host lifecycle](compatibility/src/previewHost/java/com/xlythe/test/preview/PreviewActivity.java) · [Camera service](compatibility/src/previewExtension/java/com/xlythe/test/preview/PreviewService.java)

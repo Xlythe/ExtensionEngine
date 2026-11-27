@@ -1,6 +1,7 @@
 package com.xlythe.test.preview;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Intent;
 import com.xlythe.engine.extension.operations.OperationPermissionActivity;
 
@@ -22,8 +23,17 @@ public final class PreviewApproval extends OperationPermissionActivity {
     @Override protected String hostPackage() { return HOST; }
     @Override protected String operation() { return resultOnly() ? "barcode.scan.v1" : LIVE_PREVIEW; }
     @Override protected String permission() { return Manifest.permission.CAMERA; }
-    @Override protected String disclosure() {
-        if (resultOnly()) return "Scan a barcode and share its text with Preview host?";
-        return "Share live camera images with Preview host for this session? The host can save these images.";
+    @Override protected void onRequestOperation() {
+        if (resultOnly()) {
+            requestOperationPermission();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(HOST)
+                .setMessage("Share live camera images with Preview host for this session? The host can save these images.")
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
+                .setOnCancelListener(dialog -> finish())
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> requestOperationPermission())
+                .show();
     }
 }
