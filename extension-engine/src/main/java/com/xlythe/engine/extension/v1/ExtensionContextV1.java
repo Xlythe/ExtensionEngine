@@ -11,11 +11,15 @@ import android.os.Build;
 
 import com.xlythe.engine.extension.Extension;
 import com.xlythe.engine.extension.ExtensionResources;
+import com.xlythe.engine.extension.PackageRevision;
 import com.xlythe.engine.extension.Security;
 
 public class ExtensionContextV1 extends ContextWrapper {
     private static final int CODE_FLAGS = Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY;
     private final String extensionClassName;
+    private final Context host;
+    private final PackageRevision ownerRevision;
+    private final PackageRevision adapterRevision;
 
     public ExtensionContextV1(Context context, String packageName) throws IllegalArgumentException {
         this(context, packageName, context.getPackageName());
@@ -23,6 +27,9 @@ public class ExtensionContextV1 extends ContextWrapper {
 
     public ExtensionContextV1(Context context, String packageName, String actionPackage) {
         super(null);
+        Context application = context.getApplicationContext();
+        host = application != null ? application : context;
+        ownerRevision = PackageRevision.capture(context, packageName);
         ActivityInfo activity = ExtensionResources.getActivityInfo(context, packageName, actionPackage);
         if (activity == null) {
             throw new SecurityException("No registered extension activity in " + packageName);
@@ -33,6 +40,7 @@ public class ExtensionContextV1 extends ContextWrapper {
         String adapter = activity.metaData == null ? null : activity.metaData.getString(Extension.KEY_LEGACY_ADAPTER);
         boolean legacy = Build.VERSION.SDK_INT < 26;
         Context selected;
+        PackageRevision selectedAdapter = null;
         try {
             selected = loadInstalled(context, packageName, className, legacy || adapter != null,
                     Build.VERSION.SDK_INT >= 26 ? activity.splitName : null);
@@ -45,6 +53,7 @@ public class ExtensionContextV1 extends ContextWrapper {
                     selected = context;
                     className = bundled;
                 } else if (adapter != null && (legacy || unavailable instanceof ClassNotFoundException)) {
+                    selectedAdapter = PackageRevision.capture(context, adapter);
                     Security.enforceLegacyAdapter(context, packageName, adapter);
                     selected = loadInstalled(context, adapter, className, true, null);
                 } else {
@@ -55,6 +64,8 @@ public class ExtensionContextV1 extends ContextWrapper {
             }
         }
 
+        adapterRevision = selectedAdapter;
+        if (!isCurrent()) throw new IllegalStateException("Extension changed during loading");
         if (selected != context) {
             selected.getResources().updateConfiguration(new Configuration(context.getResources().getConfiguration()),
                     context.getResources().getDisplayMetrics());
@@ -129,6 +140,11 @@ public class ExtensionContextV1 extends ContextWrapper {
         } catch (ClassNotFoundException absent) {
             return null;
         }
+    }
+
+    /** False after the owning APK or its selected companion is replaced or removed. */
+    public final boolean isCurrent() {
+        return ownerRevision.isCurrent(host) && (adapterRevision == null || adapterRevision.isCurrent(host));
     }
 
     public String getExtensionClassName() {

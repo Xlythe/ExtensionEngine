@@ -3,12 +3,19 @@ plugins {
     id 'com.android.dynamic-feature' version '9.3.1' apply false
 }
 
+def fixtureRevision = providers.gradleProperty('fixtureRevision').orElse('1').get().toInteger()
+
 android {
+    buildFeatures {
+        buildConfig = true
+        resValues = true
+    }
     namespace 'com.xlythe.test'
     compileSdk 37
     defaultConfig {
         minSdk 14
-        versionCode 1
+        versionCode fixtureRevision
+        resValue 'string', 'fixture_revision', fixtureRevision.toString()
         targetSdk 37
     }
     flavorDimensions 'role'
@@ -16,6 +23,16 @@ android {
         host {
             dimension 'role'
             applicationId 'com.xlythe.test.host'
+        }
+        previewHost {
+            dimension 'role'
+            minSdk 21
+            applicationId 'com.xlythe.test.previewhost'
+        }
+        previewExtension {
+            dimension 'role'
+            minSdk 21
+            applicationId 'com.xlythe.test.previewextension'
         }
         bundledHost {
             dimension 'role'
@@ -35,6 +52,8 @@ android {
         }
     }
     sourceSets {
+        previewHost.java.srcDir 'src/preview/java'
+        previewExtension.java.srcDir 'src/preview/java'
         bundledHost.java.srcDir 'src/host/java'
         extensionWithAdapter.java.srcDir 'src/extension/java'
         extensionWithAdapter.res.srcDir 'src/extension/res'
@@ -45,7 +64,13 @@ android {
 
 configurations.bundledHostImplementation.extendsFrom(configurations.hostImplementation)
 
+configurations.previewHostImplementation.extendsFrom(configurations.hostImplementation)
+configurations.previewExtensionImplementation.extendsFrom(configurations.hostImplementation)
+
 dependencies {
+    previewExtensionImplementation('com.journeyapps:zxing-android-embedded:4.3.0') { transitive = false }
+    // The camera fixtures also run on API 21-23.
+    previewExtensionImplementation 'com.google.zxing:core:3.3.0'
     hostImplementation 'com.xlythe:extension-engine'
     // Exercise the published API range with a dependency graph that supports API 14.
     constraints {

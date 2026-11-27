@@ -270,3 +270,36 @@ of the loading path. Its public pipe callback remains for API compatibility.
 The report in `extension-engine/build/reports/coverage/test/debug/` measures
 JVM tests only. The installed-APK probes above exercise the platform class
 loaders and Package Manager on devices.
+
+## Camera and vibration operations
+
+With a disposable English-language emulator selected in `ANDROID_SERIAL`, build both debug APKs and run the camera smoke test. The test clears data for those two fixture packages.
+
+```sh
+gradle -p compatibility :assemblePreviewHostDebug :assemblePreviewExtensionDebug
+adb install -r compatibility/build/outputs/apk/previewHost/debug/*.apk
+adb install -r compatibility/build/outputs/apk/previewExtension/debug/*.apk
+python3 compatibility/check_preview.py
+```
+
+The same host has a **Vibrate via extension** button. Use `python3 compatibility/check_preview.py --vibration-only available` to check that the host receives a successful result and Android records a fresh vibration from the extension package. Use `--vibration-only unavailable` on an emulator without a vibrator to check the canceled result.
+
+Pass `--expect-barcode 'ExtensionEngine test scan'` when the emulated camera points at a QR code with that text.
+
+## APK replacement
+
+Build two revisions and exercise both update directions on a disposable emulator. Each revision contains different extension bytecode and a different resource value. The camera probe requires an emulated camera.
+
+```sh
+out=$(mktemp -d)
+for revision in 1 2; do
+    mkdir "$out/$revision"
+    gradle -p compatibility -PfixtureRevision="$revision" assembleHostDebug assembleExtensionDebug assemblePreviewHostDebug assemblePreviewExtensionDebug
+    for role in host extension previewHost previewExtension; do
+        cp compatibility/build/outputs/apk/"$role"/debug/*.apk "$out/$revision/$role.apk"
+    done
+done
+python3 compatibility/check_updates.py "$out/1" "$out/2"
+```
+
+Use `--embedded-only` for an emulator without a camera.

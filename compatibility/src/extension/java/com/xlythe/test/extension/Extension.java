@@ -13,6 +13,10 @@ public class Extension {
         this.context = context;
     }
 
+    public String revision() {
+        return com.xlythe.test.BuildConfig.VERSION_CODE + "/" + context.getString(R.string.fixture_revision);
+    }
+
     public String readLabel() {
         TextView view = (TextView) LayoutInflater.from(context).inflate(R.layout.label, null);
         return view.getText().toString();

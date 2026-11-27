@@ -1,0 +1,17 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <application android:label="Camera extension" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name="com.xlythe.test.preview.PreviewApproval" android:exported="true">
+            <intent-filter>
+                <action android:name="com.xlythe.test.previewhost.EXTENSION" />
+            </intent-filter>
+        </activity>
+        <activity android:name="com.xlythe.test.preview.ScannerActivity" android:exported="false" />
+        <service android:name="com.xlythe.test.preview.PreviewService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.xlythe.test.previewhost.EXTENSION_SERVICE" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

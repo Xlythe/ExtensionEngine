@@ -13,5 +13,7 @@ public class ExtensionContextV2 extends ContextWrapper {
         super(new ExtensionContextV1(context, packageName));
     }
 
+    public boolean isCurrent() { return ((ExtensionContextV1) getBaseContext()).isCurrent(); }
+
     public static class InvalidCursorException extends Exception {}
 }

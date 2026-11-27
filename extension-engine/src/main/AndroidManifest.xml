@@ -1,8 +1,15 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Merged into the host APK for discovery. Extensions advertise the host action on an activity. -->
     <queries>
         <intent>
             <action android:name="${applicationId}.EXTENSION" />
         </intent>
     </queries>
+    <application>
+        <activity android:name=".operations.ExtensionPermissionRequestActivity"
+            android:enabled="@bool/extension_engine_permission_request_enabled"
+            android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            tools:targetApi="18" />
+    </application>
 </manifest>
