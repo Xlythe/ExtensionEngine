@@ -114,3 +114,7 @@ Some historical paid installs keep the executable APK private to the extension's
 UID. If the publisher includes a host-side implementation, the engine can select
 it automatically for the verified owner. The ordinary install and split paths
 require no adapter configuration. [Legacy adapter packaging and device tests](compatibility/README.md)
+
+### Extension-owned permissions
+
+Use an explicitly selected extension operation when Android requires the extension's own UID. The host binds to the verified service from its foreground activity. The extension handles user consent, checks its own permission, and executes the operation. The camera sample includes an inline live preview and a result-only barcode scanner. [Implementation and two-APK example](docs/extension-permissions.md)

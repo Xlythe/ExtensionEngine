@@ -11,11 +11,22 @@ android {
         versionCode 1
         targetSdk 37
     }
+    buildFeatures { aidl = true }
     flavorDimensions 'role'
     productFlavors {
         host {
             dimension 'role'
             applicationId 'com.xlythe.test.host'
+        }
+        previewHost {
+            dimension 'role'
+            minSdk 21
+            applicationId 'com.xlythe.test.previewhost'
+        }
+        previewExtension {
+            dimension 'role'
+            minSdk 21
+            applicationId 'com.xlythe.test.previewextension'
         }
         bundledHost {
             dimension 'role'
@@ -35,6 +46,8 @@ android {
         }
     }
     sourceSets {
+        previewHost.aidl.srcDir 'src/preview/aidl'
+        previewExtension.aidl.srcDir 'src/preview/aidl'
         bundledHost.java.srcDir 'src/host/java'
         extensionWithAdapter.java.srcDir 'src/extension/java'
         extensionWithAdapter.res.srcDir 'src/extension/res'
@@ -45,7 +58,13 @@ android {
 
 configurations.bundledHostImplementation.extendsFrom(configurations.hostImplementation)
 
+configurations.previewHostImplementation.extendsFrom(configurations.hostImplementation)
+configurations.previewExtensionImplementation.extendsFrom(configurations.hostImplementation)
+
 dependencies {
+    previewExtensionImplementation('com.journeyapps:zxing-android-embedded:4.3.0') { transitive = false }
+    // The camera fixtures also run on API 21-23.
+    previewExtensionImplementation 'com.google.zxing:core:3.3.0'
     hostImplementation 'com.xlythe:extension-engine'
     // Exercise the published API range with a dependency graph that supports API 14.
     constraints {
