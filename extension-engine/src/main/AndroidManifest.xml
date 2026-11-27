@@ -1,1 +1,8 @@
-<manifest package="com.xlythe.engine.extension" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Merged into the host APK for discovery. Extensions advertise the host action on an activity. -->
+    <queries>
+        <intent>
+            <action android:name="${applicationId}.EXTENSION" />
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,56 @@
+plugins {
+    id 'com.android.application' version '9.3.1'
+    id 'com.android.dynamic-feature' version '9.3.1' apply false
+}
+
+android {
+    namespace 'com.xlythe.test'
+    compileSdk 37
+    defaultConfig {
+        minSdk 14
+        versionCode 1
+        targetSdk 37
+    }
+    flavorDimensions 'role'
+    productFlavors {
+        host {
+            dimension 'role'
+            applicationId 'com.xlythe.test.host'
+        }
+        bundledHost {
+            dimension 'role'
+            applicationId 'com.xlythe.test.host'
+        }
+        extensionWithAdapter {
+            dimension 'role'
+            applicationId 'com.xlythe.test.extension'
+        }
+        adapter {
+            dimension 'role'
+            applicationId 'com.xlythe.test.adapter'
+        }
+        extension {
+            dimension 'role'
+            applicationId 'com.xlythe.test.extension'
+        }
+    }
+    sourceSets {
+        bundledHost.java.srcDir 'src/host/java'
+        extensionWithAdapter.java.srcDir 'src/extension/java'
+        extensionWithAdapter.res.srcDir 'src/extension/res'
+        adapter.java.srcDir 'src/extension/java'
+        adapter.res.srcDir 'src/extension/res'
+    }
+}
+
+configurations.bundledHostImplementation.extendsFrom(configurations.hostImplementation)
+
+dependencies {
+    hostImplementation 'com.xlythe:extension-engine'
+    // Exercise the published API range with a dependency graph that supports API 14.
+    constraints {
+        hostImplementation('androidx.appcompat:appcompat') {
+            version { strictly '1.6.1' }
+        }
+    }
+}

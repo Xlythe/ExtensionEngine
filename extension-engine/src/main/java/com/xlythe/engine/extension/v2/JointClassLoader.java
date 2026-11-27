@@ -1,7 +1,6 @@
 package com.xlythe.engine.extension.v2;
 
-import android.util.Log;
-
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -9,21 +8,20 @@ import java.nio.ByteBuffer;
 import java.util.Enumeration;
 import java.util.Vector;
 
-import static com.xlythe.engine.extension.Extension.DEBUG;
-import static com.xlythe.engine.extension.Extension.TAG;
-
 /**
  * A class loader that combines multiple class loaders into one.<br>
  * The classes loaded by this class loader are associated with this class loader,
  * i.e. Class.getClassLoader() points to this class loader.
+ * @deprecated Retained for callers of the original Java bytecode loader. Android extensions use their installed DEX.
  */
+@Deprecated
 public class JointClassLoader extends ClassLoader {
 
-    private ClassLoader[] delegateClassLoaders;
+    private final ClassLoader[] delegateClassLoaders;
 
     public JointClassLoader(ClassLoader parent, ClassLoader... delegateClassLoaders) {
         super(parent);
-        this.delegateClassLoaders = delegateClassLoaders;
+        this.delegateClassLoaders = delegateClassLoaders.clone();
     }
 
     @Override
@@ -46,50 +44,27 @@ public class JointClassLoader extends ClassLoader {
     }
 
     private ByteBuffer loadResource(URL url) throws IOException {
-        InputStream stream = null;
-        try {
-            stream = url.openStream();
-            int initialBufferCapacity = Math.min(0x40000, stream.available() + 1);
-            if (initialBufferCapacity <= 2) {
-                initialBufferCapacity = 0x10000;
-            } else {
-                initialBufferCapacity = Math.max(initialBufferCapacity, 0x200);
-            }
-            ByteBuffer buf = ByteBuffer.allocate(initialBufferCapacity);
-            while (true) {
-                if (!buf.hasRemaining()) {
-                    ByteBuffer newBuf = ByteBuffer.allocate(2 * buf.capacity());
-                    buf.flip();
-                    newBuf.put(buf);
-                    buf = newBuf;
-                }
-                int len = stream.read(buf.array(), buf.position(), buf.remaining());
-                if (len <= 0) {
-                    break;
-                }
-                buf.position(buf.position() + len);
-            }
-            buf.flip();
-            return buf;
-        } finally {
-            if (stream != null) {
-                stream.close();
-            }
+        try (InputStream stream = url.openStream()) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            int count;
+            while ((count = stream.read(chunk)) != -1) bytes.write(chunk, 0, count);
+            return ByteBuffer.wrap(bytes.toByteArray());
         }
     }
 
+    @Override
     protected URL findResource(String name) {
-        if (DEBUG) Log.i(TAG, "Looking for res " + name);
         for (ClassLoader delegate : delegateClassLoaders) {
             URL resource = delegate.getResource(name);
             if (resource != null) {
                 return resource;
             }
         }
-        if (DEBUG) Log.i(TAG, "Did not find class file");
         return null;
     }
 
+    @Override
     protected Enumeration<URL> findResources(String name) throws IOException {
         Vector<URL> vector = new Vector<>();
         for (ClassLoader delegate : delegateClassLoaders) {

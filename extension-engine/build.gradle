@@ -6,18 +6,31 @@ Properties projectProperties = new Properties()
 projectProperties.load(rootProject.file('gradle.properties').newDataInputStream())
 
 Properties localProperties = new Properties()
-localProperties.load(project.rootProject.file('local.properties').newDataInputStream())
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
+def measureUnitCoverage = providers.gradleProperty("coverage").isPresent()
 
 android {
-    compileSdkVersion 33
+    namespace 'com.xlythe.engine.extension'
+    compileSdk 37
 
     defaultConfig {
-        minSdkVersion 14
-        targetSdkVersion 33
-        versionCode 1
-        versionName project.property("bintray.libraryVersion")
+        minSdk 14
+        consumerProguardFiles "consumer-rules.pro"
     }
-    lintOptions {
+    buildTypes.debug.enableUnitTestCoverage = measureUnitCoverage
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            all { maxHeapSize = "2g" }
+        }
+        targetSdk 37
+    }
+    lint {
+        targetSdk 37
         abortOnError false
     }
     compileOptions {
@@ -28,6 +41,16 @@ android {
         singleVariant("release") {
             withSourcesJar()
             withJavadocJar()
+        }
+    }
+}
+
+if (measureUnitCoverage) {
+    androidComponents.onVariants(androidComponents.selector().withBuildType("debug")) { variant ->
+        variant.unitTest.configureTestTask { task ->
+            // Robolectric loads application classes in a sandbox without a code-source location.
+            task.jacoco.includeNoLocationClasses = true
+            task.jacoco.includes = ['com.xlythe.engine.extension.*']
         }
     }
 }
@@ -90,5 +113,7 @@ signing {
 
 dependencies {
     api fileTree(dir: 'libs', include: ['*.jar'])
-    api 'androidx.appcompat:appcompat:[1.5.0,)'
+    api 'androidx.appcompat:appcompat:[1.6.1,)'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
 }

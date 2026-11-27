@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="com.xlythe.test.host.LoadTest"
+        android:targetPackage="com.xlythe.test.host" />
+</manifest>
