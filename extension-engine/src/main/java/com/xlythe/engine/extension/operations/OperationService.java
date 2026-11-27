@@ -20,7 +20,11 @@ public abstract class OperationService extends Service {
     private final Set<Session> active = new HashSet<>();
     private volatile boolean bound;
 
-    /** Start work for this operation and retain the session until the work ends. */
+    /**
+     * Receives the operation name and inputs from the host's OperationSession.open call.
+     * Implement the Android calls here with this service's context and the extension's
+     * permissions. Keep live resources in this process until the session closes.
+     */
     protected abstract void onOpenSession(String operation, Bundle arguments, Session session);
 
     /** Release resources acquired in onOpenSession, including on host death or disconnection. */

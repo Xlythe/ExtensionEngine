@@ -23,6 +23,7 @@ public final class PreviewActivity extends ComponentActivity implements TextureV
     private static final String PROVIDER = "com.xlythe.test.previewextension";
     private static final int APPROVE = 7;
     private static final int SCAN = 8;
+    private static final int PULSE = 9;
     private TextureView preview;
     private TextView status;
     private Button action;
@@ -47,9 +48,7 @@ public final class PreviewActivity extends ComponentActivity implements TextureV
         action.setText("Share live preview");
         action.setOnClickListener(v -> {
             if (connection != null) { stop("Stopped"); return; }
-            try {
-                startActivityForResult(ExtensionOperations.approvalIntent(this, PROVIDER), APPROVE);
-            } catch (RuntimeException unavailable) { stop("Provider unavailable"); }
+            launchOperation(PreviewContract.LIVE_PREVIEW, APPROVE);
         });
         Button scan = new Button(this);
         scan.setText("Scan barcode in extension");
@@ -60,25 +59,35 @@ public final class PreviewActivity extends ComponentActivity implements TextureV
                 else cameraPermission.launch(Manifest.permission.CAMERA);
             } catch (RuntimeException unavailable) { stop("Provider unavailable"); }
         });
+        Button pulse = new Button(this);
+        pulse.setText("Vibrate via extension");
+        pulse.setOnClickListener(v -> launchOperation(PreviewContract.VIBRATE, PULSE));
         preview = new TextureView(this);
         preview.setVisibility(View.INVISIBLE);
         preview.setSurfaceTextureListener(this);
         layout.addView(status);
         layout.addView(action);
         layout.addView(scan);
+        layout.addView(pulse);
         layout.addView(preview, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(layout);
     }
 
-    private void scan() {
+    private void scan() { launchOperation(PreviewContract.SCAN, SCAN); }
+
+    private void launchOperation(String operation, int requestCode) {
         try {
             Intent intent = ExtensionOperations.approvalIntent(this, PROVIDER);
-            startActivityForResult(intent.putExtra("operation", "scan"), SCAN);
+            startActivityForResult(intent.putExtra(PreviewContract.OPERATION, operation), requestCode);
         } catch (RuntimeException unavailable) { stop("Provider unavailable"); }
     }
 
     @Override protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
+        if (code == PULSE) {
+            status.setText(result == RESULT_OK ? "Vibration requested" : "Vibration unavailable");
+            return;
+        }
         if (code == SCAN) {
             status.setText(result == RESULT_OK && data != null ? data.getStringExtra("barcode") : "Scan canceled");
             return;
@@ -101,10 +110,10 @@ public final class PreviewActivity extends ComponentActivity implements TextureV
         texture.setDefaultBufferSize(640, 480);
         surface = new Surface(texture);
         Bundle arguments = new Bundle();
-        arguments.putParcelable("surface", surface);
+        arguments.putParcelable(PreviewContract.SURFACE, surface);
         try {
             frames = 0;
-            connection = OperationSession.open(this, PROVIDER, "camera.preview.v1", approval, arguments,
+            connection = OperationSession.open(this, PROVIDER, PreviewContract.LIVE_PREVIEW, approval, arguments,
                     /* shareWhileInUseCapabilities= */ true, this::stop);
             approval = null;
             action.setText("Stop sharing");

@@ -271,7 +271,7 @@ The report in `extension-engine/build/reports/coverage/test/debug/` measures
 JVM tests only. The installed-APK probes above exercise the platform class
 loaders and Package Manager on devices.
 
-## Camera operations
+## Camera and vibration operations
 
 With a disposable English-language emulator selected in `ANDROID_SERIAL`, build both debug APKs and run the camera smoke test. The test clears data for those two fixture packages.
 
@@ -281,6 +281,8 @@ adb install -r compatibility/build/outputs/apk/previewHost/debug/*.apk
 adb install -r compatibility/build/outputs/apk/previewExtension/debug/*.apk
 python3 compatibility/check_preview.py
 ```
+
+The same host has a **Vibrate via extension** button. Use `python3 compatibility/check_preview.py --vibration-only available` to check that the host receives a successful result and Android records a fresh vibration from the extension package. Use `--vibration-only unavailable` on an emulator without a vibrator to check the canceled result.
 
 Pass `--expect-barcode 'ExtensionEngine test scan'` when the emulated camera points at a QR code with that text.
 

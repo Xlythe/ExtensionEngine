@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <application android:label="Camera extension" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name="com.xlythe.test.preview.PreviewApproval" android:exported="true">

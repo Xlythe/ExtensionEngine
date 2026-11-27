@@ -127,14 +127,20 @@ public class Extension extends ContextWrapper {
         this(extension, extension.mObj);
     }
 
-    /** False when this instance belongs to a superseded installation. Rebuild any views it returned
-     * and acquire a new instance with getExtension before calling the updated implementation. */
+    /**
+     * Returns false when this instance belongs to a superseded installation. Rebuild any views it
+     * returned and acquire a new instance with getExtension before calling the updated implementation.
+     */
     public final boolean isCurrent() {
         Context base = getBaseContext();
         if (base instanceof Extension) return ((Extension) base).isCurrent();
         return !(base instanceof ExtensionContextV1) || ((ExtensionContextV1) base).isCurrent();
     }
 
+    /**
+     * Calls the loaded object in the host process. To perform work with the extension UID,
+     * launch an extension Activity or open an operation session with its service.
+     */
     protected Object invoke(String methodName, ReflectionPair... parameters) {
         if (!isCurrent()) throw new IllegalStateException("Extension was replaced or removed; reload it");
         Class[] classes = new Class[parameters.length];

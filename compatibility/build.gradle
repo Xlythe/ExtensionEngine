@@ -52,6 +52,8 @@ android {
         }
     }
     sourceSets {
+        previewHost.java.srcDir 'src/preview/java'
+        previewExtension.java.srcDir 'src/preview/java'
         bundledHost.java.srcDir 'src/host/java'
         extensionWithAdapter.java.srcDir 'src/extension/java'
         extensionWithAdapter.res.srcDir 'src/extension/res'

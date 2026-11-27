@@ -25,8 +25,8 @@ public final class PreviewService extends OperationService {
     private int opening;
 
     @Override protected void onOpenSession(String operation, Bundle arguments, Session session) {
-        Surface surface = arguments.getParcelable("surface");
-        if (!PreviewApproval.LIVE_PREVIEW.equals(operation) || surface == null || !surface.isValid()) {
+        Surface surface = arguments.getParcelable(PreviewContract.SURFACE);
+        if (!PreviewContract.LIVE_PREVIEW.equals(operation) || surface == null || !surface.isValid()) {
             if (surface != null) surface.release();
             session.finish("Invalid preview request");
             return;
