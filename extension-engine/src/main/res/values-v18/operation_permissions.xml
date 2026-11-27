@@ -1,0 +1,3 @@
+<resources>
+    <bool name="extension_engine_permission_request_enabled">true</bool>
+</resources>

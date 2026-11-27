@@ -1,13 +1,14 @@
 package com.xlythe.test.preview;
 
-import android.app.Activity;
-import android.content.ComponentName;
+import android.Manifest;
 import android.content.Intent;
-import android.content.ServiceConnection;
+import android.content.pm.PackageManager;
+import androidx.activity.ComponentActivity;
+import androidx.activity.result.ActivityResultLauncher;
+import com.xlythe.engine.extension.operations.ExtensionPermissions;
+import com.xlythe.engine.extension.operations.OperationSession;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
-import android.os.IBinder;
-import android.os.RemoteException;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
@@ -15,12 +16,10 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.xlythe.engine.extension.Security;
 import com.xlythe.engine.extension.operations.ExtensionOperations;
-import com.xlythe.engine.extension.operations.OperationApproval;
 
 /** A two-APK fixture. The host manifest has no CAMERA permission. */
-public final class PreviewActivity extends Activity implements TextureView.SurfaceTextureListener {
+public final class PreviewActivity extends ComponentActivity implements TextureView.SurfaceTextureListener {
     private static final String PROVIDER = "com.xlythe.test.previewextension";
     private static final int APPROVE = 7;
     private static final int SCAN = 8;
@@ -28,8 +27,15 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
     private TextView status;
     private Button action;
     private boolean resumed;
-    private IBinder approval;
-    private Connection connection;
+    private Intent approval;
+    private OperationSession connection;
+    private Surface surface;
+    private int frames;
+    private final ActivityResultLauncher<String> cameraPermission = registerForActivityResult(
+            new ExtensionPermissions.RequestPermission(PROVIDER), granted -> {
+                if (granted) scan();
+                else status.setText("Scan canceled");
+            });
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -49,8 +55,9 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
         scan.setText("Scan barcode in extension");
         scan.setOnClickListener(v -> {
             try {
-                Intent intent = ExtensionOperations.approvalIntent(this, PROVIDER);
-                startActivityForResult(intent.putExtra("operation", "scan"), SCAN);
+                if (ExtensionPermissions.checkPermission(this, PROVIDER, Manifest.permission.CAMERA)
+                        == PackageManager.PERMISSION_GRANTED) scan();
+                else cameraPermission.launch(Manifest.permission.CAMERA);
             } catch (RuntimeException unavailable) { stop("Provider unavailable"); }
         });
         preview = new TextureView(this);
@@ -63,6 +70,13 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
         setContentView(layout);
     }
 
+    private void scan() {
+        try {
+            Intent intent = ExtensionOperations.approvalIntent(this, PROVIDER);
+            startActivityForResult(intent.putExtra("operation", "scan"), SCAN);
+        } catch (RuntimeException unavailable) { stop("Provider unavailable"); }
+    }
+
     @Override protected void onActivityResult(int code, int result, Intent data) {
         super.onActivityResult(code, result, data);
         if (code == SCAN) {
@@ -70,7 +84,7 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
             return;
         }
         if (code != APPROVE) return;
-        approval = result == RESULT_OK ? OperationApproval.token(data) : null;
+        approval = result == RESULT_OK ? data : null;
         if (approval == null) stop("Sharing declined");
         else connect();
     }
@@ -82,11 +96,17 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
         if (!resumed || approval == null || connection != null) return;
         preview.setVisibility(View.VISIBLE);
         if (!preview.isAvailable()) return;
-        Connection next = new Connection();
-        connection = next;
+        SurfaceTexture texture = preview.getSurfaceTexture();
+        if (texture == null) return;
+        texture.setDefaultBufferSize(640, 480);
+        surface = new Surface(texture);
+        Bundle arguments = new Bundle();
+        arguments.putParcelable("surface", surface);
         try {
-            next.bound = ExtensionOperations.bind(this, PROVIDER, next, true);
-            if (!next.bound) { stop("Provider unavailable"); return; }
+            frames = 0;
+            connection = OperationSession.open(this, PROVIDER, "camera.preview.v1", approval, arguments,
+                    /* shareWhileInUseCapabilities= */ true, this::stop);
+            approval = null;
             action.setText("Stop sharing");
             status.setText("Connecting");
         } catch (RuntimeException denied) { stop("Binding denied"); }
@@ -94,49 +114,13 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
 
     private void stop(String reason) {
         approval = null;
-        Connection old = connection;
+        if (connection != null) connection.close();
         connection = null;
-        if (old != null) {
-            try { if (old.remote != null) old.remote.stop(old.events); }
-            catch (RemoteException | RuntimeException gone) { /* Session was already closed. */ }
-            if (old.bound) unbindService(old);
-        }
+        if (surface != null) surface.release();
+        surface = null;
         preview.setVisibility(View.INVISIBLE);
         action.setText("Share live preview");
         status.setText(reason);
-    }
-
-    private final class Connection implements ServiceConnection {
-        boolean bound;
-        IPreviewV1 remote;
-        int frames;
-        final IPreviewEvents events = new IPreviewEvents.Stub() {
-            @Override public void ended(String reason) {
-                ExtensionOperations.enforceCaller(PreviewActivity.this, PROVIDER);
-                runOnUiThread(() -> { if (connection == Connection.this) stop(reason); });
-            }
-        };
-
-        @Override public void onServiceConnected(ComponentName name, IBinder binder) {
-            if (connection != this) return;
-            SurfaceTexture texture = preview.getSurfaceTexture();
-            if (texture == null) { stop("No visible surface"); return; }
-            texture.setDefaultBufferSize(640, 480);
-            Surface surface = new Surface(texture);
-            try {
-                Security.enforceTrustedPackage(PreviewActivity.this, name.getPackageName());
-                remote = IPreviewV1.Stub.asInterface(binder);
-                remote.start(approval, surface, events);
-                approval = null;
-            } catch (RemoteException | RuntimeException failure) { stop("Session rejected"); }
-            finally { surface.release(); }
-        }
-
-        @Override public void onServiceDisconnected(ComponentName name) {
-            if (connection == this) stop("Provider disconnected");
-        }
-        @Override public void onBindingDied(ComponentName name) { onServiceDisconnected(name); }
-        @Override public void onNullBinding(ComponentName name) { onServiceDisconnected(name); }
     }
 
     @Override public void onSurfaceTextureAvailable(SurfaceTexture texture, int w, int h) { connect(); }
@@ -146,6 +130,6 @@ public final class PreviewActivity extends Activity implements TextureView.Surfa
         return true;
     }
     @Override public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-        if (connection != null && ++connection.frames == 5) status.setText("Live camera preview");
+        if (connection != null && ++frames == 5) status.setText("Live camera preview");
     }
 }

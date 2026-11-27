@@ -6,10 +6,11 @@ import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.RequiresApi;
+import com.xlythe.engine.extension.ExtensionResources;
 
 /**
  * Verifies an activity-for-result caller before an extension handles a permission-gated operation.
- * Implement {@link #onRequestOperation()} to present the extension's own UI or continue a
+ * Override {@link #onRequestOperation()} to present the extension's own UI before continuing a
  * user-initiated action. This activity supplies no layout. Android owns the runtime permission
  * dialog and applies the user's choice to the extension package.
  *
@@ -19,7 +20,15 @@ import androidx.annotation.RequiresApi;
  */
 @RequiresApi(18)
 public abstract class OperationPermissionActivity extends Activity {
-    protected abstract String hostPackage();
+    /** The framework supplies the caller identity. Only hosts registered by this extension qualify. */
+    protected String hostPackage() {
+        String caller = getCallingPackage();
+        if (caller == null || ExtensionResources.getActivityInfo(
+                this, getPackageName(), caller) == null) {
+            throw new SecurityException("Unregistered host");
+        }
+        return caller;
+    }
     protected abstract String operation();
     protected abstract String permission();
     /**
@@ -27,7 +36,7 @@ public abstract class OperationPermissionActivity extends Activity {
      * pending. Call {@link #requestOperationPermission()} when the user chooses the operation.
      * For sensitive data sharing, explain what the host will receive before continuing.
      */
-    protected abstract void onRequestOperation();
+    protected void onRequestOperation() { requestOperationPermission(); }
 
     private boolean requesting;
 

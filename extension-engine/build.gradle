@@ -15,6 +15,7 @@ def measureUnitCoverage = providers.gradleProperty("coverage").isPresent()
 
 android {
     namespace 'com.xlythe.engine.extension'
+    buildFeatures { aidl = true }
     compileSdk 37
 
     defaultConfig {

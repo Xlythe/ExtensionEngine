@@ -117,58 +117,37 @@ require no adapter configuration. [Legacy adapter packaging and device tests](co
 
 ### Extension-owned permissions
 
-A barcode scanner can use its own camera permission and return a string to a host that never declares `CAMERA`. In the **host** (a `ComponentActivity` or `AppCompatActivity`), launch the trusted scanner when the user taps Scan. The two apps agree on the operation name and result extra.
+A host can use a trusted extension for an operation that requires a permission the host lacks. For example, a scanner could use the extension's camera and return a barcode, or a voice recorder could use its microphone and return a recording. The host can check its own permission with Android’s usual APIs and explicitly choose a local implementation or the extension operation. The Android permission belongs to the extension, which implements the operation and decides what to share.
+
+**Check and request a permission.** In a host `ComponentActivity`, register the launcher once. Pass the Android permission name when the user selects the feature.
 
 ```java
-private final ActivityResultLauncher<Intent> scan = registerForActivityResult(
-        new ActivityResultContracts.StartActivityForResult(), result -> {
-            Intent data = result.getData();
-            if (result.getResultCode() == RESULT_OK && data != null) {
-                barcodeLabel.setText(data.getStringExtra("barcode"));
-            }
+private final ActivityResultLauncher<String> requestPermission = registerForActivityResult(
+        new ExtensionPermissions.RequestPermission(EXTENSION_PACKAGE), granted -> {
+            if (granted) startExtensionScan();
         });
 
-void scanBarcode() {
-    Intent request = ExtensionOperations.approvalIntent(this, "com.example.scanner");
-    scan.launch(request.putExtra("operation", "scan"));
-}
-```
-
-In the **extension APK**, declare `android.permission.CAMERA` and advertise the approval activity on the existing registration activity with `<meta-data android:name="com.xlythe.engine.extension.OPERATION_APPROVAL" android:value=".ScanApproval" />`. Export the approval activity and make the expected host visible to the extension's package manager. Separately signed peers register each other's package and certificate before use. [Complete example manifest](compatibility/src/previewExtension/AndroidManifest.xml)
-
-```java
-public final class ScanApproval extends OperationPermissionActivity {
-    @Override protected String hostPackage() { return "com.example.host"; }
-    @Override protected String operation() { return "barcode.scan.v1"; }
-    @Override protected String permission() { return Manifest.permission.CAMERA; }
-
-    @Override protected void onRequestOperation() {
-        requestOperationPermission();  // The user selected Scan in the host.
-    }
-
-    @Override protected void onAuthorized() {
-        startActivity(new Intent(this, ScannerActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_FORWARD_RESULT));
-        finish();
+void onScanClick() {
+    if (ExtensionPermissions.checkPermission(this, EXTENSION_PACKAGE, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED) {
+        startExtensionScan();
+    } else {
+        requestPermission.launch(Manifest.permission.CAMERA);
     }
 }
 ```
 
-On API 23+ a missing grant triggers Android’s runtime permission request for the extension. Android decides whether to show a dialog. Denial returns a canceled result. An existing grant proceeds directly to `onAuthorized()`. The private scanner uses the camera in its own process and calls `setResult(RESULT_OK, new Intent().putExtra("barcode", text))` and `finish()`. An extension can also render its own explanation in `onRequestOperation()` and call `requestOperationPermission()` from a button. The library supplies no dialog or layout. [Runnable scanner](compatibility/src/previewExtension/java/com/xlythe/test/preview/ScannerActivity.java)
+The extension declares the permission it uses and registers its existing activity for the host's `.EXTENSION` action. The library manifest adds the permission-request activity automatically. The engine checks registration and signing identity on both sides. Android handles the runtime prompt on API 23+. On API 18–22 the result reflects the install-time grant. Special access that Android manages through Settings needs its own platform flow. Separately signed apps register each other's signing certificates.
 
-**For a live preview inside the host**, the extension first asks whether the host may receive camera images. The default `onAuthorized()` returns a single-use approval to the host. Once the host activity is visible again, it binds to the registered service and passes the approval and its preview surface through typed AIDL.
+**Return a result.** A scanner could launch its registered extension activity with `ExtensionOperations.approvalIntent(this, EXTENSION_PACKAGE)` using Android’s normal activity-for-result API. In the sample, an `"operation"` extra selects `"scan"`. The extension rechecks its permission and returns the decoded text with `setResult(RESULT_OK, new Intent().putExtra("barcode", text))`. The host reads the result in its activity callback. [Host example](compatibility/src/previewHost/java/com/xlythe/test/preview/PreviewActivity.java) · [Scanner](compatibility/src/previewExtension/java/com/xlythe/test/preview/ScannerActivity.java)
+
+**Keep an operation running while the host displays it.** A live preview shares pixels with the host. The sample extension uses its own approval UI to ask the user about that sharing, even with camera permission already granted. After the user accepts and the host is visible, open the approved operation and supply the preview surface.
 
 ```java
-// Host, after RESULT_OK
-IBinder approval = OperationApproval.token(resultIntent);
-boolean bound = ExtensionOperations.bind(this, extensionPackage, connection,
-        /* shareWhileInUseCapabilities= */ true);
-// In connection.onServiceConnected(), with the host's surface and callback ready:
-IPreviewV1.Stub.asInterface(binder).start(approval, surface, events);
-
-// Extension, at the start of the incoming IPreviewV1.start() call
-OperationApproval.consume(this, HOST_PACKAGE, "camera.preview.v1", approval);
-// Open Camera2 here in the extension process and direct its output to the supplied surface.
+Bundle inputs = new Bundle();
+inputs.putParcelable("surface", previewSurface);
+session = OperationSession.open(this, EXTENSION_PACKAGE, "camera.preview.v1",
+        approvalResult, inputs, /* shareWhileInUseCapabilities= */ true, this::onPreviewEnded);
 ```
 
-Stop the session and unbind the successful connection when the host leaves the preview. The sample handles service death, permission loss and surface teardown. [Host lifecycle](compatibility/src/previewHost/java/com/xlythe/test/preview/PreviewActivity.java) · [Camera service](compatibility/src/previewExtension/java/com/xlythe/test/preview/PreviewService.java)
+Call `session.close()` when the host pauses or loses its surface. In the extension, implement `OperationService.onOpenSession(operation, inputs, session)` and `onCloseSession(session)`. Open Camera2 against the supplied surface and close the camera when the session ends. Recheck the extension's current grant before starting work. The library handles binding, foreground importance, single-use approval, and peer death. Advertise the service with the host's `.EXTENSION_SERVICE` action. The matching registration activity handles operation approval by default. [Extension approval UI](compatibility/src/previewExtension/java/com/xlythe/test/preview/PreviewApproval.java) · [Camera service](compatibility/src/previewExtension/java/com/xlythe/test/preview/PreviewService.java) · [Example manifest](compatibility/src/previewExtension/AndroidManifest.xml)

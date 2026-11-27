@@ -14,6 +14,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import com.xlythe.engine.extension.v2.DexFileProvider;
 import com.xlythe.engine.extension.operations.ExtensionOperations;
+import com.xlythe.engine.extension.operations.ExtensionPermissions;
 import org.robolectric.Robolectric;
 import org.robolectric.shadows.ShadowBinder;
 import java.io.FileNotFoundException;
@@ -187,6 +188,28 @@ public class SecurityTest {
         assertEquals(Build.VERSION.SDK_INT >= 29 ? priority | Context.BIND_INCLUDE_CAPABILITIES : priority, activity.flags);
         install(PEER, PARTNER_CERT);
         assertThrows(SecurityException.class, () -> ExtensionOperations.bind(activity, PEER, null, true));
+    }
+
+    @Test @Config(sdk = {23, 30})
+    public void permissionContractRequiresRegistrationAndAcceptsOtherPermissionNames() {
+        String permission = android.Manifest.permission.RECORD_AUDIO;
+        BindingActivity activity = Robolectric.buildActivity(BindingActivity.class).setup().get();
+        ResolveInfo registration = resolve(install(PEER, HOST_CERT));
+        ExtensionPermissions.RequestPermission request = new ExtensionPermissions.RequestPermission(PEER);
+        assertThrows(IllegalArgumentException.class, () -> request.createIntent(activity, permission));
+        Intent action = new Intent(host.getPackageName() + Extension.ACTION_EXTENSION).setPackage(PEER);
+        shadowOf(host.getPackageManager()).addResolveInfoForIntent(action, registration);
+        assertEquals(new ComponentName(PEER, registration.activityInfo.name),
+                ExtensionOperations.approvalIntent(activity, PEER).getComponent());
+        Intent prompt = request.createIntent(activity, permission);
+        assertEquals(PEER, prompt.getComponent().getPackageName());
+        assertEquals(permission, prompt.getStringExtra("com.xlythe.engine.extension.PERMISSION"));
+        assertEquals(android.content.pm.PackageManager.PERMISSION_DENIED,
+                ExtensionPermissions.checkPermission(activity, PEER, permission));
+        assertTrue(request.parseResult(Activity.RESULT_OK, null));
+        assertFalse(request.parseResult(Activity.RESULT_CANCELED, null));
+        install(PEER, PARTNER_CERT);
+        assertThrows(SecurityException.class, () -> request.createIntent(activity, permission));
     }
 
     @Test public void discoveryFiltersTrustAndReturnsEachOwnerOnce() {

@@ -7,12 +7,14 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
+import android.content.pm.ResolveInfo;
 import android.content.pm.PackageManager;
 import android.os.Binder;
 import android.os.Build;
 
 import com.xlythe.engine.extension.ExtensionResources;
 import com.xlythe.engine.extension.Security;
+import java.util.List;
 
 /** Explicit IPC endpoints advertised on a trusted extension's registration activity. */
 public final class ExtensionOperations {
@@ -22,7 +24,7 @@ public final class ExtensionOperations {
     private ExtensionOperations() {}
 
     /**
-     * Returns the explicit activity advertised by a registered, trusted extension for this host.
+     * Returns a trusted extension's registration activity, or its explicit approval activity override.
      * Launch it for result so the extension can verify the calling package. Any operation-specific
      * extras and the result payload are part of the contract between the two apps.
      * @throws SecurityException if the installed extension fails the signing policy
@@ -32,7 +34,7 @@ public final class ExtensionOperations {
         return endpoint(host, extension, APPROVAL);
     }
 
-    /** Bind with foreground process importance for the lifetime of a visible operation. */
+    /** Bind a custom service with foreground process importance for the lifetime of a visible operation. */
     public static boolean bind(Activity host, String extension, ServiceConnection connection) {
         return bind(host, extension, connection, /* shareWhileInUseCapabilities= */ false);
     }
@@ -55,6 +57,15 @@ public final class ExtensionOperations {
         Security.enforceTrustedPackage(host, extension);
         ActivityInfo registration = ExtensionResources.getActivityInfo(host, extension);
         String name = registration == null || registration.metaData == null ? null : registration.metaData.getString(key);
+        if (registration == null) throw new IllegalArgumentException("Extension is not registered for this host");
+        if (name == null && APPROVAL.equals(key)) name = registration.name;
+        if (name == null && SERVICE.equals(key)) {
+            Intent intent = new Intent(host.getPackageName() + ".EXTENSION_SERVICE").setPackage(extension);
+            List<ResolveInfo> matches = host.getPackageManager().queryIntentServices(intent, 0);
+            if (matches.size() == 1 && extension.equals(matches.get(0).serviceInfo.packageName)) {
+                name = matches.get(0).serviceInfo.name;
+            }
+        }
         if (name == null || name.isEmpty()) throw new IllegalArgumentException("Missing extension endpoint " + key);
         ComponentName component = new ComponentName(extension, name.startsWith(".") ? extension + name : name);
         return new Intent().setComponent(component);

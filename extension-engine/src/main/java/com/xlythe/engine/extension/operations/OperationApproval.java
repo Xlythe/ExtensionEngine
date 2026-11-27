@@ -16,7 +16,7 @@ import androidx.annotation.RequiresApi;
  * run in the same extension process. Process death invalidates outstanding approvals.
  */
 @RequiresApi(18)
-public final class OperationApproval extends Binder {
+final class OperationApproval extends Binder {
     private static final String EXTRA = "com.xlythe.engine.extension.APPROVAL_TOKEN";
     private final String host;
     private final String operation;
@@ -49,6 +49,11 @@ public final class OperationApproval extends Binder {
     public static IBinder token(Intent result) {
         Bundle extras = result == null ? null : result.getExtras();
         return extras == null ? null : extras.getBinder(EXTRA);
+    }
+
+    static void consume(Context extension, String operation, IBinder token) {
+        if (!(token instanceof OperationApproval)) throw new SecurityException("Missing local approval");
+        consume(extension, ((OperationApproval) token).host, operation, token);
     }
 
     /**

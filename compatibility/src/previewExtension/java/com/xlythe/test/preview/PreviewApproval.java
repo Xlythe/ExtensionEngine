@@ -6,7 +6,6 @@ import android.content.Intent;
 import com.xlythe.engine.extension.operations.OperationPermissionActivity;
 
 public final class PreviewApproval extends OperationPermissionActivity {
-    static final String HOST = "com.xlythe.test.previewhost";
     static final String LIVE_PREVIEW = "camera.preview.v1";
 
     private boolean resultOnly() { return "scan".equals(getIntent().getStringExtra("operation")); }
@@ -20,7 +19,6 @@ public final class PreviewApproval extends OperationPermissionActivity {
         }
     }
 
-    @Override protected String hostPackage() { return HOST; }
     @Override protected String operation() { return resultOnly() ? "barcode.scan.v1" : LIVE_PREVIEW; }
     @Override protected String permission() { return Manifest.permission.CAMERA; }
     @Override protected void onRequestOperation() {
@@ -29,7 +27,7 @@ public final class PreviewApproval extends OperationPermissionActivity {
             return;
         }
         new AlertDialog.Builder(this)
-                .setTitle(HOST)
+                .setTitle(hostPackage())
                 .setMessage("Share live camera images with Preview host for this session? The host can save these images.")
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> finish())
                 .setOnCancelListener(dialog -> finish())

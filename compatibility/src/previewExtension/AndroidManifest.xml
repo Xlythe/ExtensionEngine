@@ -1,15 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA" />
-    <queries><package android:name="com.xlythe.test.previewhost" /></queries>
     <application android:label="Camera extension" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name="com.xlythe.test.preview.PreviewApproval" android:exported="true">
             <intent-filter>
                 <action android:name="com.xlythe.test.previewhost.EXTENSION" />
             </intent-filter>
-            <meta-data android:name="com.xlythe.engine.extension.OPERATION_APPROVAL" android:value="com.xlythe.test.preview.PreviewApproval" />
-            <meta-data android:name="com.xlythe.engine.extension.OPERATION_SERVICE" android:value="com.xlythe.test.preview.PreviewService" />
         </activity>
         <activity android:name="com.xlythe.test.preview.ScannerActivity" android:exported="false" />
-        <service android:name="com.xlythe.test.preview.PreviewService" android:exported="true" />
+        <service android:name="com.xlythe.test.preview.PreviewService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.xlythe.test.previewhost.EXTENSION_SERVICE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

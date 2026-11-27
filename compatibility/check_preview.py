@@ -152,8 +152,14 @@ if __name__ == "__main__":
     options = parser.parse_args()
     check_preview(int(shell("getprop", "ro.build.version.sdk")))
     if options.expect_barcode:
+        sdk = int(shell("getprop", "ro.build.version.sdk"))
+        if sdk >= 23:
+            shell("pm", "revoke", EXTENSION, "android.permission.CAMERA")
         launch()
         wait_ui("Scan barcode in extension", tap=True)
+        if sdk >= 23:
+            allow = "permission_allow_foreground_only_button" if sdk >= 30 else "permission_allow_button"
+            wait_ui(allow, tap=True)
         wait_ui(options.expect_barcode)
         expect_closed()
         print("PASS: barcode text returned to host")
